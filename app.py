@@ -1,29 +1,30 @@
 import streamlit as st
+from conexion_oanda import conectar_oanda
 
-# ============================================================
-# XPACE TRADING IA - APLICACIÓN PRINCIPAL
-# ============================================================
+# Configuración básica de la pantalla para celulares
+st.set_page_config(page_title="XPace Trading IA", layout="centered")
 
-st.set_page_config(
-    page_title="XPace Trading IA",
-        page_icon="📈",
-            layout="wide"
-            )
+# Título principal
 st.title("📈 XPace Trading IA")
-
-st.write("Plataforma de aprendizaje y análisis de Forex")
+st.caption("Plataforma de aprendizaje y análisis de trading")
 
 st.divider()
 
-st.subheader("Mercado")
-par = st.selectbox(
-                "Selecciona el par",
-                    [
-                            "EUR/USD",
-                                    "GBP/USD",
-                                            "USD/JPY"
-                                                ]
-                                                )
-st.write("Par seleccionado:", par)
-if st.button("📥 Traer histórico"):
-    st.info("Módulo histórico pendiente de conectar.")
+# Sección de Configuración y Conexión
+st.subheader("1. Conexión con Broker (OANDA Demo)")
+
+if st.button("Probar Conexión OANDA"):
+    exito, mensaje = conectar_oanda()
+    if exito:
+        st.success(mensaje)
+    else:
+        st.warning(mensaje)
+
+st.divider()
+
+# Sección de Selección de Mercado
+st.subheader("2. Selección de Mercado")
+par = st.selectbox("Selecciona un Par de Divisas:", ["EUR/USD", "GBP/USD", "USD/JPY"])
+temporalidad = st.selectbox("Selecciona la Temporalidad:", ["1 Hora (H1)", "4 Horas (H4)", "1 Día (D1)"])
+
+st.info(f"Par seleccionado: {par} | Temporalidad: {temporalidad}")
