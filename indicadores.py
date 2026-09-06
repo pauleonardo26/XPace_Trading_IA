@@ -3,31 +3,38 @@
 # ============================================================
 
 import pandas as pd
+import numpy as np
 
 def calcular_indicadores(df):
     """
-    Calcula Medias Móviles Simples (SMA 20 y SMA 50) y el Índice de Fuerza Relativa (RSI 14).
-    Garantiza la creación limpia de la columna 'RSI'.
+    Calcula SMA_20, SMA_50 y RSI garantizando que las columnas 
+    existan en el DataFrame de retorno.
     """
+    if df is None or df.empty:
+        return df
+
     df = df.copy()
-    
-    # Calculo de Medias Móviles
-    df["SMA_20"] = df["Close"].rolling(window=20).mean()
-    df["SMA_50"] = df["Close"].rolling(window=50).mean()
-    
-    # Cálculo de RSI (14 periodos)
+
+    # 1. Medias Móviles Simples
+    df["SMA_20"] = df["Close"].rolling(window=20, min_periods=1).mean()
+    df["SMA_50"] = df["Close"].rolling(window=50, min_periods=1).mean()
+
+    # 2. Cálculo Seguro del RSI (14 periodos)
     delta = df["Close"].diff()
-    ganancia = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    perdida = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    ganancia = delta.clip(lower=0)
+    perdida = -1 * delta.clip(upper=0)
+
+    prom_ganancia = ganancia.rolling(window=14, min_periods=1).mean()
+    prom_perdida = perdida.rolling(window=14, min_periods=1).mean()
+
+    # Evitar división por cero
+    prom_perdida = prom_perdida.replace(0, np.nan)
+    rs = prom_ganancia / prom_perdida
     
-    rs = ganancia / perdida
-    df["RSI"] = 100 - (100 / (1 + rs))
-    
-    # Rellenar valores nulos iniciales con 50 (neutral) para evitar errores en las primeras filas
-    df["RSI"] = df["RSI"].fillna(50)
-    df["SMA_20"] = df["SMA_20"].bfill()
-    df["SMA_50"] = df["SMA_50"].bfill()
-    
+    rsi = 100 - (100 / (1 + rs))
+    df["RSI"] = rsi.fillna(50)  # Valor neutral por defecto para las primeras filas
+
     return df
+
 
 
