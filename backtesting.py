@@ -55,3 +55,4 @@ def ejecutar_backtesting(df, capital_inicial=10000.0):
     
     return df, resumen
 
+
