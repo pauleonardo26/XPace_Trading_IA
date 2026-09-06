@@ -32,7 +32,7 @@ if df_datos is not None and not df_datos.empty:
     # Crear pestañas de navegación
     tab1, tab2, tab3, tab4 = st.tabs(["📈 Panel Principal", "🧪 Backtesting", "🛡️ Calculadora de Riesgo", "🤖 Analista IA"])
     
-    # PEAQUEÑA 1: PANEL PRINCIPAL
+    # PESTAÑA 1: PANEL PRINCIPAL
     with tab1:
         st.subheader(f"Datos Históricos de {par_seleccionado} ({temporalidad_seleccionada})")
         st.dataframe(df_datos.tail(15), use_container_width=True)
@@ -127,4 +127,5 @@ Velas analizadas: {cantidad_velas}
 
 else:
     st.error(f"Error al cargar los datos: {mensaje_estado}")
+
 
