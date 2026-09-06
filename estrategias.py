@@ -5,7 +5,7 @@
 import pandas as pd
 from indicadores import calcular_indicadores
 
-def evaluar_estrategia_cruces(df):
+def evaluar_estrategias_cruces(df):
     """
     Estrategia de Tendencia + Momento (SMA 20/50 + RSI 14).
     Genera señales: 1 (Compra), -1 (Venta), 0 (Neutral).
