@@ -5,7 +5,7 @@
 import streamlit as st
 import pandas as pd
 
-from conexion_oanda import probar_conexion_oanda
+#from conexion_oanda import probar_conexion_oanda
 from historico import obtener_historico
 from indicadores import calcular_indicadores
 from estrategias import evaluar_estrategia_cruces
