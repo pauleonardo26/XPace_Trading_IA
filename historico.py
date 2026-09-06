@@ -5,51 +5,54 @@
 import pandas as pd
 import yfinance as yf
 
+# Mapeo de pares de Forex al formato de Yahoo Finance
+SIMBOLOS_YAHOO = {
+    "EUR/USD": "EURUSD=X",
+    "GBP/USD": "GBPUSD=X",
+    "USD/JPY": "JPY=X"
+}
+
+# Mapeo de temporalidades
+TEMPORALIDADES_YAHOO = {
+    "15 Minutos (M15)": "15m",
+    "1 Hora (H1)": "1h",
+    "4 Horas (H4)": "1h",
+    "1 Día (D1)": "1d"
+}
+
 def obtener_historico(par="EUR/USD", temporalidad="1 Hora (H1)", cantidad=100):
     """
-    Descarga datos de Yahoo Finance y limpia las columnas para evitar errores de KeyError.
+    Descarga datos históricos de precios usando la librería gratuita Yahoo Finance.
     """
-    # Mapeo de pares a tickers de Yahoo Finance
-    tickers = {
-        "EUR/USD": "EURUSD=X",
-        "GBP/USD": "GBPUSD=X",
-        "USD/JPY": "JPY=X"
-    }
-    
-    # Mapeo de temporalidades
-    intervalos = {
-        "15 Minutos (M15)": ("15m", "1mo"),
-        "1 Hora (H1)": ("1h", "2mo"),
-        "4 Horas (H4)": ("1h", "3mo"),
-        "1 Día (D1)": ("1d", "2y")
-    }
-    
-    ticker = tickers.get(par, "EURUSD=X")
-    intervalo, periodo = intervalos.get(temporalidad, ("1h", "2mo"))
-    
     try:
-        df = yf.download(ticker, period=periodo, interval=intervalo, progress=False)
+        simbolo = SIMBOLOS_YAHOO.get(par, "EURUSD=X")
+        intervalo = TEMPORALIDADES_YAHOO.get(temporalidad, "1h")
+        
+        periodo = "1mo" if intervalo in ["15m", "1h"] else "1y"
+        
+        ticker = yf.Ticker(simbolo)
+        df = ticker.history(period=periodo, interval=intervalo)
         
         if df.empty:
-            return None, "No se recibieron datos de Yahoo Finance."
+            return None, f"No se pudieron obtener datos para {par}."
             
-        # Aplanar MultiIndex de columnas si Yahoo Finance lo devuelve
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-            
-        # Asegurar que existan las columnas esenciales
         df = df.reset_index()
         
-        # Buscar columna de precio de cierre
-        col_close = [c for c in df.columns if str(c).lower() in ["close", "adj close"]]
-        if col_close:
-            df["Close"] = df[col_close[0]]
-        else:
-            return None, "La columna Close no está presente en los datos."
-
-        # Filtrar solo las últimas 'cantidad' de velas solicitadas
-        df = df.tail(int(cantidad)).copy()
-        return df, "OK"
+        col_fecha = "Datetime" if "Datetime" in df.columns else "Date"
+        df = df.rename(columns={
+            col_fecha: "Date",
+            "Open": "Open",
+            "High": "High",
+            "Low": "Low",
+            "Close": "Close",
+            "Volume": "Volume"
+        })
+        
+        df = df.tail(cantidad).copy()
+        df["Date"] = pd.to_datetime(df["Date"]).dt.strftime('%Y-%m-%d %H:%M')
+        
+        return df[["Date", "Open", "High", "Low", "Close", "Volume"]], "Datos descargados exitosamente desde Yahoo Finance"
         
     except Exception as e:
-        return None, f"Error al descargar datos: {str(e)}"
+        return None, f"Error al conectar con Yahoo Finance: {str(e)}"
+
