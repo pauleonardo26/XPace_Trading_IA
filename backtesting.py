@@ -77,18 +77,21 @@ def ejecutar_backtesting(df, capital_inicial=10000.0, pips_sl=20, ratio_rr=2.0):
     return df, resumen
 
 
-# Alias para compatibilidad con las diferentes llamadas de app.py
+
+
 def ejecutar_backtest(df, capital_inicial=10000.0):
+    """
+    Alias para mantener compatibilidad con app.py devolviendo la tupla de variables.
+    """
     df_res, resumen = ejecutar_backtesting(df, capital_inicial)
     if isinstance(resumen, str):
         return df_res, 0.0, 0, 0, 0.0, 0, capital_inicial
     
-    # Extraer variables sueltas por si app.py espera la tupla de 7 elementos
     rendimiento_num = float(resumen["Rendimiento Total"].replace("%", ""))
     ganadoras = resumen["Operaciones Ganadoras"]
     perdedoras = resumen["Operaciones Perdedoras"]
-    win_rate_num = float(resumen["Porcentaje de Aciertos (Win Rate)"].replace("%", ""))
-    total_ops = resumen["Total Cambios de Señal"]
+    win_rate_num = float(resumen["Win Rate"].replace("%", ""))
+    total_ops = resumen["Total Operaciones"]
     capital_final_num = float(resumen["Capital Final"].replace("$", "").replace(",", ""))
     
     return df_res, rendimiento_num, ganadoras, perdedoras, win_rate_num, total_ops, capital_final_num
