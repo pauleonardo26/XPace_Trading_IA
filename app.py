@@ -4,27 +4,12 @@
 
 import streamlit as st
 import pandas as pd
-
-from conexion_oanda import probar_conexion_oanda
 from historico import obtener_historico
 from indicadores import calcular_indicadores
 from estrategias import evaluar_estrategia_cruces
 from backtesting import ejecutar_backtesting
 from riesgo import calcular_riesgo_operacion
 from ia_analista import generar_informe_analista
-
-
-
-
-#import streamlit as st
-#import pandas as pd
-
-#from historico import obtener_historico
-#from indicadores import calcular_indicadores
-#from estrategias import evaluar_estrategia_cruces
-#from backtesting import ejecutar_backtesting
-#from riesgo import calcular_gestion_riesgo
-#from ia_analista import generar_informe_analista
 
 
 st.set_page_config(page_title="XPace Trading IA", layout="wide", page_icon="📈")
@@ -143,5 +128,6 @@ Velas analizadas: {cantidad_velas}
 
 else:
     st.error(f"Error al cargar los datos: {mensaje_estado}")
+
 
 
