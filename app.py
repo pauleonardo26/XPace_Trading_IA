@@ -7,7 +7,7 @@ import pandas as pd
 from historico import obtener_historico
 from indicadores import calcular_indicadores
 from estrategias import generar_senales
-from backtesting import ejecutar_backtest
+from backtesting import ejecutar_backtesting
 from riesgo import calcular_riesgo_operacion
 from ia_analista import generar_informe_analista
 
