@@ -2,13 +2,14 @@
 # XPACE TRADING IA - GESTIÓN DE RIESGO
 # ============================================================
 
-def calcular_riesgo_operacion(capital_total, porcentaje_riesgo, precio_entrada, distancia_stop_loss_pips, direccion="compra", relacion_rr=2.0, par="EUR/USD"):
+def calcular_riesgo_operacion(capital_total, porcentaje_riesgo, precio_entrada, distancia_stop_loss_pips, direccion="compra", relacion_rr=2.0, par="EUR/USD", take_profit_manual=None):
     """
     Calcula el tamaño de posición en unidades, dinero en riesgo, Stop Loss y Take Profit.
     
     - porcentaje_riesgo: Expresado en número (ej. 1.0 para 1%)
     - distancia_stop_loss_pips: Distancia en pips (ej. 30.0)
     - relacion_rr: Relación Riesgo/Beneficio (ej. 2.0 para 1:2)
+    - take_profit_manual: (Opcional) Precio exacto de TP. Si se provee, recalcula el R:R real.
     """
     if capital_total <= 0 or porcentaje_riesgo <= 0 or distancia_stop_loss_pips <= 0 or precio_entrada <= 0:
         return None, "Error: Los valores de capital, riesgo y distancia de stop loss deben ser mayores a cero."
@@ -22,15 +23,29 @@ def calcular_riesgo_operacion(capital_total, porcentaje_riesgo, precio_entrada, 
     factor_pip = 0.01 if es_jpy else 0.0001
     
     distancia_precio_sl = distancia_stop_loss_pips * factor_pip
-    distancia_precio_tp = distancia_precio_sl * relacion_rr
     
-    # 3. Niveles de Stop Loss y Take Profit
+    # --- MEJORA: Evaluación de Take Profit Manual u Automático ---
+    if take_profit_manual is not None and take_profit_manual > 0:
+        take_profit = take_profit_manual
+        distancia_precio_tp = abs(take_profit - precio_entrada)
+        rr_calculado = round(distancia_precio_tp / distancia_precio_sl, 2) if distancia_precio_sl > 0 else relacion_rr
+        beneficio_potencial = monto_riesgo * rr_calculado
+        modo_rr = f"1:{rr_calculado} (Manual)"
+    else:
+        distancia_precio_tp = distancia_precio_sl * relacion_rr
+        beneficio_potencial = monto_riesgo * relacion_rr
+        modo_rr = f"1:{relacion_rr}"
+        
+        if direccion.lower() == "compra":
+            take_profit = precio_entrada + distancia_precio_tp
+        else:  # venta
+            take_profit = precio_entrada - distancia_precio_tp
+            
+    # 3. Nivel de Stop Loss
     if direccion.lower() == "compra":
         stop_loss = precio_entrada - distancia_precio_sl
-        take_profit = precio_entrada + distancia_precio_tp
     else:  # venta
         stop_loss = precio_entrada + distancia_precio_sl
-        take_profit = precio_entrada - distancia_precio_tp
         
     # 4. Cálculo aproximado de unidades (1 micro lote = 1,000 unidades)
     # 1 pip en 10,000 unidades (0.1 lote) equivale aprox. a $1.00 USD en pares USD de contraparte
@@ -45,10 +60,15 @@ def calcular_riesgo_operacion(capital_total, porcentaje_riesgo, precio_entrada, 
         "Stop Loss (SL)": f"{stop_loss:.5f}",
         "Take Profit (TP)": f"{take_profit:.5f}",
         "Distancia SL (Pips)": f"{distancia_stop_loss_pips} pips",
-        "Relación R:R": f"1:{relacion_rr}",
-        "Beneficio Potencial": f"${monto_riesgo * relacion_rr:,.2f}",
+        "Relación R:R": modo_rr,
+        "Beneficio Potencial": f"${beneficio_potencial:,.2f}",
         "Tamaño Posición (Unidades)": f"{int(unidades):,} unidades"
     }
     
     return resumen_riesgo, "Cálculo de riesgo realizado exitosamente."
+
+
+# Alias para garantizar compatibilidad total
+calcular_gestion_riesgo = calcular_riesgo_operacion
+
 
