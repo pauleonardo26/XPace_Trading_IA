@@ -57,7 +57,7 @@ if st.button("📥 CARGAR DATOS Y EJECUTAR ANÁLISIS", type="primary"):
             st.success(f"¡Datos procesados correctamente! ({msg})")
         else:
             st.error(f"No se pudieron obtener datos: {msg}")
-
+    
 # --- SECCIÓN 3: PESTAÑAS DE TRABAJO ---
 if "df_actual" in st.session_state and st.session_state["df_actual"] is not None:
     df = st.session_state["df_actual"]
