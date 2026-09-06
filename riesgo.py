@@ -2,53 +2,53 @@
 # XPACE TRADING IA - GESTIÓN DE RIESGO
 # ============================================================
 
-import pandas as pd
-
-def calcular_gestion_riesgo(capital=10000.0, porcentaje_riesgo=1.0, precio_entrada=1.0850, ratio_rr=2.0, pips_sl=20):
+def calcular_riesgo_operacion(capital_total, porcentaje_riesgo, precio_entrada, distancia_stop_loss_pips, direccion="compra", relacion_rr=2.0, par="EUR/USD"):
     """
-    Calcula el tamaño de la posición (lote), Stop Loss y Take Profit 
-    con un Ratio Riesgo:Beneficio optimizado de 1:2.
+    Calcula el tamaño de posición en unidades, dinero en riesgo, Stop Loss y Take Profit.
+    
+    - porcentaje_riesgo: Expresado en número (ej. 1.0 para 1%)
+    - distancia_stop_loss_pips: Distancia en pips (ej. 30.0)
+    - relacion_rr: Relación Riesgo/Beneficio (ej. 2.0 para 1:2)
     """
-    try:
-        # Monto máximo dispuesto a perder en dinero
-        monto_riesgo = capital * (porcentaje_riesgo / 100.0)
+    if capital_total <= 0 or porcentaje_riesgo <= 0 or distancia_stop_loss_pips <= 0 or precio_entrada <= 0:
+        return None, "Error: Los valores de capital, riesgo y distancia de stop loss deben ser mayores a cero."
         
-        # Valor estimado por pip por lote estándar en Forex ($10 USD por pip aproximadamente en EUR/USD)
-        valor_pip = 10.0
+    # 1. Monto máximo en dinero a arriesgar
+    monto_riesgo = capital_total * (porcentaje_riesgo / 100.0)
+    
+    # 2. Valor aproximado por pip según el par
+    # En la mayoría de pares mayores (salvo JPY), 1 pip = 0.0001 en precio
+    es_jpy = "JPY" in par
+    factor_pip = 0.01 if es_jpy else 0.0001
+    
+    distancia_precio_sl = distancia_stop_loss_pips * factor_pip
+    distancia_precio_tp = distancia_precio_sl * relacion_rr
+    
+    # 3. Niveles de Stop Loss y Take Profit
+    if direccion.lower() == "compra":
+        stop_loss = precio_entrada - distancia_precio_sl
+        take_profit = precio_entrada + distancia_precio_tp
+    else:  # venta
+        stop_loss = precio_entrada + distancia_precio_sl
+        take_profit = precio_entrada - distancia_precio_tp
         
-        # Cálculo del tamaño de la posición en lotes estándar
-        lotes = monto_riesgo / (pips_sl * valor_pip)
-        unidades = lotes * 100000
-        
-        # Distancia del Pip en Forex (4 decimales para la mayoría de pares)
-        distancia_pip = 0.0001
-        
-        # Cálculo de Stop Loss y Take Profit con Ratio 1:2
-        distancia_sl = pips_sl * distancia_pip
-        distancia_tp = (pips_sl * ratio_rr) * distancia_pip
-        
-        sl_comprador = precio_entrada - distancia_sl
-        tp_comprador = precio_entrada + distancia_tp
-        
-        sl_vendedor = precio_entrada + distancia_sl
-        tp_vendedor = precio_entrada - distancia_tp
-        
-        resumen = {
-            "Capital Inicial": f"${capital:,.2f} USD",
-            "Monto en Riesgo": f"${monto_riesgo:,.2f} USD",
-            "Riesgo (%)": f"{porcentaje_riesgo}%",
-            "Ratio R:R": f"1:{ratio_rr}",
-            "Lotes Sugeridos": f"{lotes:.2f}",
-            "Tamaño Posición (Unidades)": f"{unidades:,.0f}",
-            "Stop Loss (SL) Comprador": f"{sl_comprador:.5f}",
-            "Take Profit (TP) Comprador": f"{tp_comprador:.5f}",
-            "Stop Loss (SL) Vendedor": f"{sl_vendedor:.5f}",
-            "Take Profit (TP) Vendedor": f"{tp_vendedor:.5f}"
-        }
-        
-        return resumen
-        
-    except Exception as e:
-        return {"Error": f"No se pudo calcular el riesgo: {str(e)}"}
-
+    # 4. Cálculo aproximado de unidades (1 micro lote = 1,000 unidades)
+    # 1 pip en 10,000 unidades (0.1 lote) equivale aprox. a $1.00 USD en pares USD de contraparte
+    unidades = (monto_riesgo / (distancia_stop_loss_pips * factor_pip))
+    unidades = round(unidades, -2)  # Redondear a centenas
+    
+    resumen_riesgo = {
+        "Capital Total": f"${capital_total:,.2f}",
+        "Riesgo (%)": f"{porcentaje_riesgo}%",
+        "Monto en Riesgo": f"${monto_riesgo:,.2f}",
+        "Precio Entrada": f"{precio_entrada:.5f}",
+        "Stop Loss (SL)": f"{stop_loss:.5f}",
+        "Take Profit (TP)": f"{take_profit:.5f}",
+        "Distancia SL (Pips)": f"{distancia_stop_loss_pips} pips",
+        "Relación R:R": f"1:{relacion_rr}",
+        "Beneficio Potencial": f"${monto_riesgo * relacion_rr:,.2f}",
+        "Tamaño Posición (Unidades)": f"{int(unidades):,} unidades"
+    }
+    
+    return resumen_riesgo, "Cálculo de riesgo realizado exitosamente."
 
