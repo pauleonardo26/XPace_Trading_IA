@@ -64,3 +64,4 @@ def obtener_historico(par="EUR/USD", temporalidad="1 Hora (H1)", cantidad=100):
 
 
 
+
