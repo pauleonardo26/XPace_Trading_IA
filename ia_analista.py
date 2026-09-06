@@ -1,6 +1,9 @@
 i# ============================================================
 # XPACE TRADING IA - ANALISTA IA
-# ============================================================def generar_informe_analista(par, temporalidad, precio_actual, rsi, sma_20, sma_50, senal, resumen_riesgo=None):
+# ============================================================
+
+
+def generar_informe_analista(par, temporalidad, precio_actual, rsi, sma_20, sma_50, senal, resumen_riesgo=None):
     """
     Genera un informe analítico avanzado evaluando tendencia, osciladores, 
     volatilidad y estructura de mercado sin generar falsas expectativas.
