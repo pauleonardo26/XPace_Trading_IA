@@ -83,11 +83,29 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
         fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['SMA_20'], line=dict(color='#29b6f6', width=1.5), name='SMA 20'), row=1, col=1)
         fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['SMA_50'], line=dict(color='#ff9800', width=1.5), name='SMA 50'), row=1, col=1)
 
-        # 3. Indicador de Fuerza RSI (Soporta 'RSI' o 'RSI_14')
-         col_rsi_plot = "RSI_14" if "RSI_14" in df_datos.columns else ("RSI" if "RSI" in df_datos.columns else None)
+                # 3. Indicador de Fuerza RSI
+        col_rsi_plot = "RSI_14" if "RSI_14" in df_datos.columns else ("RSI" if "RSI" in df_datos.columns else None)
         
         if col_rsi_plot:
             fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos[col_rsi_plot], line=dict(color='#ab47bc', width=1.5), name='RSI'), row=2, col=1)
+        
+        # Líneas de referencia para Sobrecompra / Sobreventa
+        fig.add_hline(y=70, line_dash="dash", line_color="#ff3b30", row=2, col=1)
+        fig.add_hline(y=30, line_dash="dash", line_color="#00c076", row=2, col=1)
+
+        # Configuración estética oscura del lienzo Plotly
+        fig.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="#0b0e14",
+            plot_bgcolor="#131722",
+            height=600,
+            xaxis_rangeslider_visible=False,
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+
+        # Renderizar en Streamlit con ancho ajustado
+        st.plotly_chart(fig, use_container_width=True)
+
 
         
         # Líneas de referencia para Sobrecompra / Sobreventa
