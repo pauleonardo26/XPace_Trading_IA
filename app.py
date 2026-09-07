@@ -85,9 +85,9 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
 
         # 3. Indicador de Fuerza RSI (Soporta 'RSI' o 'RSI_14')
          col_rsi_plot = "RSI_14" if "RSI_14" in df_datos.columns else ("RSI" if "RSI" in df_datos.columns else None)
-
+        
         if col_rsi_plot:
-        fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos[col_rsi_plot], line=dict(color='#ab47bc', width=1.5), name='RSI'), row=2, col=1)
+            fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos[col_rsi_plot], line=dict(color='#ab47bc', width=1.5), name='RSI'), row=2, col=1)
 
         
         # Líneas de referencia para Sobrecompra / Sobreventa
