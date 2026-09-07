@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 from historico import obtener_historico
 from indicadores import calcular_indicadores
@@ -10,10 +9,9 @@ from backtesting import ejecutar_backtesting
 from riesgo import calcular_riesgo_operacion
 from ia_analista import generar_informe_analista
 
-# Configuración inicial de la página
+# Configuración de interfaz estilo terminal
 st.set_page_config(page_title="XPace Trading IA", layout="wide", page_icon="📈")
 
-# Estilos CSS oscuros para interfaz estilo Terminal Profesional
 st.markdown("""
     <style>
     .stApp {
@@ -21,22 +19,8 @@ st.markdown("""
         color: #e1e3e6;
     }
     div[data-testid="stMetricValue"] {
-        font-size: 22px;
+        font-size: 20px;
         font-weight: bold;
-    }
-    .buy-card {
-        background-color: #0e2a1f;
-        border: 1px solid #00c076;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 10px;
-    }
-    .sell-card {
-        background-color: #2a0e12;
-        border: 1px solid #ff3b30;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 10px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -60,25 +44,19 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
     col_rsi_name = "RSI_14" if "RSI_14" in df_datos.columns else ("RSI" if "RSI" in df_datos.columns else None)
     r_act = float(df_datos[col_rsi_name].iloc[-1]) if col_rsi_name else 50.0
 
-    # PESTAÑAS PRINCIPALES
-    tab_terminal, tab_backtest, tab_ia = st.tabs(["📊 Terminal & Simulación", "🧪 Backtesting Historico", "🤖 Analista IA"])
+    tab_terminal, tab_backtest, tab_ia = st.tabs(["📊 Terminal & Simulación", "🧪 Backtesting Histórico", "🤖 Analista IA"])
 
     # ------------------ PESTAÑA 1: TERMINAL DE TRADING & SIMULACIÓN ------------------
     with tab_terminal:
         col_grafico, col_operativa = st.columns([2.5, 1])
 
-        # COLUMNA IZQUIERDA: GRÁFICO TÉCNICO
         with col_grafico:
-            st.subheader(f"Mercado: {par_seleccionado} ({temporalidad_seleccionada})")
+            st.subheader(f"Gráfico Principal: {par_seleccionado} ({temporalidad_seleccionada})")
             
-            fig = make_subplots(
-                rows=2, cols=1, 
-                shared_xaxes=True, 
-                vertical_spacing=0.03, 
-                subplot_titles=(f"Precio {par_seleccionado}", "RSI (14)"),
-                row_width=[0.25, 0.75]
-            )
+            # Gráfico único sin paneles divididos ni zonas en blanco
+            fig = go.Figure()
 
+            # 1. Velas Japonesas
             fig.add_trace(go.Candlestick(
                 x=df_datos.index,
                 open=df_datos['Open'] if 'Open' in df_datos.columns else df_datos['Close'],
@@ -88,29 +66,31 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
                 name='Precio',
                 increasing_line_color='#00c076',
                 decreasing_line_color='#ff3b30'
-            ), row=1, col=1)
+            ))
 
+            # 2. Medias Móviles
             if "SMA_20" in df_datos.columns:
-                fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['SMA_20'], line=dict(color='#29b6f6', width=1.5), name='SMA 20'), row=1, col=1)
+                fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['SMA_20'], line=dict(color='#29b6f6', width=1.5), name='SMA 20'))
             if "SMA_50" in df_datos.columns:
-                fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['SMA_50'], line=dict(color='#ff9800', width=1.5), name='SMA 50'), row=1, col=1)
+                fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['SMA_50'], line=dict(color='#ff9800', width=1.5), name='SMA 50'))
 
-            if col_rsi_name:
-                fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos[col_rsi_name], line=dict(color='#ab47bc', width=1.5), name='RSI'), row=2, col=1)
-                fig.add_hline(y=70, line_dash="dash", line_color="#ff3b30", row=2, col=1)
-                fig.add_hline(y=30, line_dash="dash", line_color="#00c076", row=2, col=1)
+            # 3. Bandas de Bollinger (Verificación de columnas antes de graficar)
+            if "BB_Upper" in df_datos.columns and "BB_Lower" in df_datos.columns:
+                fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['BB_Upper'], line=dict(color='#ab47bc', width=1, dash='dot'), name='Bollinger Superior'))
+                fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['BB_Lower'], line=dict(color='#ab47bc', width=1, dash='dot'), name='Bollinger Inferior'))
 
             fig.update_layout(
                 template="plotly_dark",
                 paper_bgcolor="#0b0e14",
                 plot_bgcolor="#131722",
-                height=550,
+                height=600,
                 xaxis_rangeslider_visible=False,
                 margin=dict(l=10, r=10, t=30, b=10)
             )
+
             st.plotly_chart(fig, use_container_width=True)
 
-        # COLUMNA DERECHA: DESPACHO DE ÓRDENES Y GESTIÓN DE RIESGO
+        # COLUMNA DERECHA: PANEL DE COMANDOS
         with col_operativa:
             st.subheader("⚡ Panel de Ejecución")
             st.metric("Precio Actual", f"{p_act:.5f}")
@@ -121,7 +101,6 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
             p_riesgo = st.slider("Riesgo por Trade (%)", 0.5, 3.0, 1.0, 0.5)
             sl_pips = st.number_input("Stop Loss (Pips)", value=20, step=5)
 
-            # Cálculo interno de gestión de riesgo
             res_r, _ = calcular_riesgo_operacion(
                 capital_total=cap_sim,
                 porcentaje_riesgo=p_riesgo,
@@ -134,7 +113,6 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
             monto_riesgo = res_r.get("riesgo_monetario_usd", cap_sim * (p_riesgo / 100))
             lotes = res_r.get("tamano_posicion_lotes", 0.1)
 
-            # Métrica estilizada (Reemplaza al formato JSON plano)
             m1, m2 = st.columns(2)
             m1.metric("Riesgo USD", f"${monto_riesgo:.2f}")
             m2.metric("Lotes", f"{lotes:.2f}")
@@ -146,20 +124,19 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
             
             if btn_buy.button("🟢 COMPRAR", use_container_width=True):
                 s20 = df_datos["SMA_20"].iloc[-1] if "SMA_20" in df_datos.columns else p_act
-                # Lógica del resultado según tendencia
-                if p_act >= s20 and r_act < 70:
+                if p_act >= s20:
                     ganancia = monto_riesgo * 2.0
-                    st.success(f"✅ **¡Simulación Exitosa!** Entrada a favor de tendencia. Ganancia estimada: **+${ganancia:.2f} USD**.")
+                    st.success(f"✅ **¡Entrada Ganadora!** Análisis correcto según tendencia. Ganancia: **+${ganancia:.2f} USD**.")
                 else:
-                    st.error(f"❌ **¡Stop Loss Alcanzado!** La entrada fue contra tendencia o con RSI sobrecomprado. Pérdida: **-${monto_riesgo:.2f} USD**.")
+                    st.error(f"❌ **¡Stop Loss Ejecutado!** Operación en contra de tendencia. Pérdida: **-${monto_riesgo:.2f} USD**.")
 
             if btn_sell.button("🔴 VENDER", use_container_width=True):
                 s20 = df_datos["SMA_20"].iloc[-1] if "SMA_20" in df_datos.columns else p_act
-                if p_act <= s20 and r_act > 30:
+                if p_act <= s20:
                     ganancia = monto_riesgo * 2.0
-                    st.success(f"✅ **¡Simulación Exitosa!** Venta correcta en tendencia bajista. Ganancia estimada: **+${ganancia:.2f} USD**.")
+                    st.success(f"✅ **¡Entrada Ganadora!** Análisis correcto en venta. Ganancia: **+${ganancia:.2f} USD**.")
                 else:
-                    st.error(f"❌ **¡Stop Loss Alcanzado!** Mercado rebotó en zona alcista. Pérdida: **-${monto_riesgo:.2f} USD**.")
+                    st.error(f"❌ **¡Stop Loss Ejecutado!** El mercado rebotó a la alza. Pérdida: **-${monto_riesgo:.2f} USD**.")
 
     # ------------------ PESTAÑA 2: BACKTESTING ------------------
     with tab_backtest:
@@ -195,4 +172,5 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
 
 else:
     st.error(f"Error al cargar datos: {mensaje_estado}")
+
 
