@@ -15,6 +15,11 @@ def ejecutar_backtesting(df, capital_inicial=10000.0, pips_sl=20, ratio_rr=2.0):
         
     df = df.copy()
     
+    # --- MEJORA: Cálculo de Evolucion_Capital para solucionar el KeyError en app.py ---
+    df["Retorno_Precio"] = df["Close"].pct_change().fillna(0)
+    df["Retorno_Estrategia"] = (df["Senal"].shift(1) * df["Retorno_Precio"]).fillna(0)
+    df["Evolucion_Capital"] = capital_inicial * (1 + df["Retorno_Estrategia"]).cumprod()
+    
     # Rastrear trades individuales
     df["Bloque_Trade"] = (df["Senal"] != df["Senal"].shift(1)).cumsum()
     trades_activos = df[df["Senal"] != 0].copy()
@@ -77,8 +82,6 @@ def ejecutar_backtesting(df, capital_inicial=10000.0, pips_sl=20, ratio_rr=2.0):
     return df, resumen
 
 
-
-
 def ejecutar_backtest(df, capital_inicial=10000.0):
     """
     Alias para mantener compatibilidad con app.py devolviendo la tupla de variables.
@@ -95,6 +98,7 @@ def ejecutar_backtest(df, capital_inicial=10000.0):
     capital_final_num = float(resumen["Capital Final"].replace("$", "").replace(",", ""))
     
     return df_res, rendimiento_num, ganadoras, perdedoras, win_rate_num, total_ops, capital_final_num
+
 
 
 
