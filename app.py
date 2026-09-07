@@ -1,3 +1,7 @@
+
+
+
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -10,10 +14,9 @@ from backtesting import ejecutar_backtesting
 from riesgo import calcular_riesgo_operacion
 from ia_analista import generar_informe_analista
 
-# Configuración de tema oscuro profesional para la aplicación
+# Configuración de página e inyección de tema oscuro estilo Terminal
 st.set_page_config(page_title="XPace Trading IA", layout="wide", page_icon="📈")
 
-# Inyección de estilo CSS para emular plataforma oscura tipo broker
 st.markdown("""
     <style>
     .stApp {
@@ -29,11 +32,13 @@ st.markdown("""
 
 st.title("📈 XPace Trading IA — Terminal Cuantitativa")
 
+# ------------------ BARRA LATERAL: CONFIGURACIÓN ------------------
 st.sidebar.header("⚙️ Configuración del Mercado")
 par_seleccionado = st.sidebar.selectbox("Par de Divisas", ["EUR/USD", "GBP/USD", "USD/JPY"])
 temporalidad_seleccionada = st.sidebar.selectbox("Temporalidad", ["15 Minutos (M15)", "1 Hora (H1)", "4 Horas (H4)", "1 Día (D1)"])
 cantidad_velas = st.sidebar.slider("Cantidad de Velas", min_value=50, max_value=1000, value=100, step=50)
 
+# Carga e inicialización de datos
 df_datos, mensaje_estado = obtener_historico(par=par_seleccionado, temporalidad=temporalidad_seleccionada, cantidad=cantidad_velas)
 
 if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
@@ -46,11 +51,13 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
     with tab1:
         st.subheader(f"Gráfico Interactivo en Tiempo Real — {par_seleccionado}")
         
-        # Métrica de resumen superior
+        # Identificación defensiva de la columna RSI
+        col_rsi_name = "RSI_14" if "RSI_14" in df_datos.columns else ("RSI" if "RSI" in df_datos.columns else None)
+        
         p_act = float(df_datos["Close"].iloc[-1])
-        r_act = float(df_datos["RSI"].iloc[-1]) if "RSI" in df_datos.columns else 50.0
-        s20_act = float(df_datos["SMA_20"].iloc[-1])
-        s50_act = float(df_datos["SMA_50"].iloc[-1])
+        r_act = float(df_datos[col_rsi_name].iloc[-1]) if col_rsi_name else 50.0
+        s20_act = float(df_datos["SMA_20"].iloc[-1]) if "SMA_20" in df_datos.columns else p_act
+        s50_act = float(df_datos["SMA_50"].iloc[-1]) if "SMA_50" in df_datos.columns else p_act
         
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         col_m1.metric("Último Precio", f"{p_act:.5f}")
@@ -58,7 +65,7 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
         col_m3.metric("SMA 20", f"{s20_act:.5f}")
         col_m4.metric("SMA 50", f"{s50_act:.5f}")
 
-        # Construcción del panel dual de velas e indicadores estilo tradingview
+        # Construcción del panel de Velas + RSI
         fig = make_subplots(
             rows=2, cols=1, 
             shared_xaxes=True, 
@@ -67,7 +74,7 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
             row_width=[0.25, 0.75]
         )
 
-        # 1. Velas Japonesas (Candlesticks)
+        # 1. Velas Japonesas
         fig.add_trace(go.Candlestick(
             x=df_datos.index,
             open=df_datos['Open'] if 'Open' in df_datos.columns else df_datos['Close'],
@@ -75,58 +82,35 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
             low=df_datos['Low'] if 'Low' in df_datos.columns else df_datos['Close'],
             close=df_datos['Close'],
             name='Precio',
-            increasing_line_color='#00c076', # Verde institucional
-            decreasing_line_color='#ff3b30' # Rojo institucional
+            increasing_line_color='#00c076',
+            decreasing_line_color='#ff3b30'
         ), row=1, col=1)
 
-        # 2. Medias Móviles (SMA 20 y SMA 50)
-        fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['SMA_20'], line=dict(color='#29b6f6', width=1.5), name='SMA 20'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['SMA_50'], line=dict(color='#ff9800', width=1.5), name='SMA 50'), row=1, col=1)
+        # 2. Medias Móviles
+        if "SMA_20" in df_datos.columns:
+            fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['SMA_20'], line=dict(color='#29b6f6', width=1.5), name='SMA 20'), row=1, col=1)
+        if "SMA_50" in df_datos.columns:
+            fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['SMA_50'], line=dict(color='#ff9800', width=1.5), name='SMA 50'), row=1, col=1)
 
-                # 3. Indicador de Fuerza RSI
-        col_rsi_plot = "RSI_14" if "RSI_14" in df_datos.columns else ("RSI" if "RSI" in df_datos.columns else None)
-        
-        if col_rsi_plot:
-            fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos[col_rsi_plot], line=dict(color='#ab47bc', width=1.5), name='RSI'), row=2, col=1)
-        
-        # Líneas de referencia para Sobrecompra / Sobreventa
-        fig.add_hline(y=70, line_dash="dash", line_color="#ff3b30", row=2, col=1)
-        fig.add_hline(y=30, line_dash="dash", line_color="#00c076", row=2, col=1)
+        # 3. Oscilador RSI
+        if col_rsi_name:
+            fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos[col_rsi_name], line=dict(color='#ab47bc', width=1.5), name='RSI'), row=2, col=1)
+            fig.add_hline(y=70, line_dash="dash", line_color="#ff3b30", row=2, col=1)
+            fig.add_hline(y=30, line_dash="dash", line_color="#00c076", row=2, col=1)
 
-        # Configuración estética oscura del lienzo Plotly
         fig.update_layout(
             template="plotly_dark",
             paper_bgcolor="#0b0e14",
             plot_bgcolor="#131722",
-            height=600,
+            height=580,
             xaxis_rangeslider_visible=False,
             margin=dict(l=10, r=10, t=30, b=10)
         )
 
-        # Renderizar en Streamlit con ancho ajustado
-        st.plotly_chart(fig, use_container_width=True)
-
-
-        
-        # Líneas de referencia para Sobrecompra / Sobreventa
-        fig.add_hline(y=70, line_dash="dash", line_color="#ff3b30", row=2, col=1)
-        fig.add_hline(y=30, line_dash="dash", line_color="#00c076", row=2, col=1)
-
-        # Configuración estética oscura del lienzo Plotly
-        fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="#0b0e14",
-            plot_bgcolor="#131722",
-            height=600,
-            xaxis_rangeslider_visible=False,
-            margin=dict(l=10, r=10, t=30, b=10)
-        )
-
-        # Renderizar en Streamlit con ancho ajustado
         st.plotly_chart(fig, use_container_width=True)
 
         st.write("---")
-        st.subheader("📋 Datos Recientes del Histórico")
+        st.subheader("📋 Últimas Velas del Histórico")
         st.dataframe(df_datos.tail(10), use_container_width=True)
 
     # ------------------ PESTAÑA 2: BACKTESTING ------------------
@@ -154,7 +138,7 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
             else:
                 st.info("No se registraron cambios de señal completos en este rango de velas.")
 
-    # ------------------ PESTAÑA 3: RIESGO ------------------
+    # ------------------ PESTAÑA 3: CALCULADORA DE RIESGO ------------------
     with tab3:
         st.subheader("🛡️ Gestión Monetaria y Calculadora de Riesgo")
         col_r1, col_r2 = st.columns(2)
@@ -178,32 +162,35 @@ if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
             precio_entrada=precio_ref, 
             distancia_stop_loss_pips=pips_stop,
             relacion_rr=2.0,
+            par=par_seleccionado,
             take_profit_manual=tp_manual_val
         )
         st.json(res_r)
 
-    # ------------------ PESTAÑA 4: IA ------------------
+    # ------------------ PESTAÑA 4: DIAGNÓSTICO DE IA ------------------
     with tab4:
         st.subheader("🤖 Diagnóstico Cuantitativo del Analista IA")
         if st.button("Generar Informe Completo", type="primary"):
             p_act = float(df_datos["Close"].iloc[-1])
-            r_act = float(df_datos["RSI"].iloc[-1])
-            s20_act = float(df_datos["SMA_20"].iloc[-1])
-            s50_act = float(df_datos["SMA_50"].iloc[-1])
-            sen_act = int(df_datos["Senal"].iloc[-1])
             
-            res_r, _ = calcular_riesgo_operacion(capital_total=10000.0, porcentaje_riesgo=1.0, precio_entrada=p_act, distancia_stop_loss_pips=20)
+            col_rsi_name = "RSI_14" if "RSI_14" in df_datos.columns else ("RSI" if "RSI" in df_datos.columns else None)
+            r_act = float(df_datos[col_rsi_name].iloc[-1]) if col_rsi_name else 50.0
+            
+            s20_act = float(df_datos["SMA_20"].iloc[-1]) if "SMA_20" in df_datos.columns else p_act
+            s50_act = float(df_datos["SMA_50"].iloc[-1]) if "SMA_50" in df_datos.columns else p_act
+            sen_act = int(df_datos["Senal"].iloc[-1]) if "Senal" in df_datos.columns else 0
+            
+            res_r, _ = calcular_riesgo_operacion(
+                capital_total=10000.0, 
+                porcentaje_riesgo=1.0, 
+                precio_entrada=p_act, 
+                distancia_stop_loss_pips=20,
+                relacion_rr=2.0,
+                par=par_seleccionado
+            )
             
             inf_ia = generar_informe_analista(par_seleccionado, temporalidad_seleccionada, p_act, r_act, s20_act, s50_act, sen_act, res_r)
             st.markdown(inf_ia)
 
 else:
     st.error(f"Error al cargar los datos: {mensaje_estado}")
-
-
-
-
-
-
-
-
