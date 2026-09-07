@@ -7,336 +7,311 @@ from historico import obtener_historico
 from indicadores import calcular_indicadores
 from estrategias import generar_senales
 from backtesting import ejecutar_backtesting
-from riesgo import calcular_riesgo_operacion
 from ia_analista import generar_informe_analista
 
-# ------------------ CONFIGURACIÓN DE PÁGINA Y ESTILOS AVANZADOS ------------------
-st.set_page_config(page_title="XPace Broker — Terminal", layout="wide", page_icon="📈")
+# ------------------ CONFIGURACIÓN PANTALLA COMPLETA ------------------
+st.set_page_config(
+    page_title="XPace — IQ Option Interface",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+    page_icon="📈"
+)
 
-# Inicialización de estado de cuenta demo
+# Estados Globales
 if "saldo_demo" not in st.session_state:
     st.session_state["saldo_demo"] = 13449.67
 
 if "historial_trades" not in st.session_state:
     st.session_state["historial_trades"] = []
 
-# CSS avanzado para replicar la interfaz oscura estilo IQ Option/Deriv
+if "activo_actual" not in st.session_state:
+    st.session_state["activo_actual"] = "BTC/USD"
+
+if "tf_actual" not in st.session_state:
+    st.session_state["tf_actual"] = "1D"
+
+# ------------------ CSS INYECTADO: LIMPIEZA ABSOLUTA DE STREAMLIT ------------------
 st.markdown("""
     <style>
-    /* Fondo General y Reset de Espacios */
+    /* 1. Eliminar absolutamente todos los márgenes y cabeceras de Streamlit */
+    [data-testid="stSidebar"] { display: none !important; }
+    [data-testid="stHeader"] { display: none !important; }
+    footer { display: none !important; }
+    #MainMenu { visibility: hidden; }
+    
+    /* 2. Fondo general ultra oscuro estilo IQ Option */
     .stApp {
-        background-color: #0d1117;
-        color: #e6edf3;
-        margin: 0 !important;
-        padding: 0 !important;
+        background-color: #0b0e14 !important;
+        color: #e6edf3 !important;
     }
     
-    /* Eliminar paddings superiores molestos */
     .block-container {
-        padding-top: 0rem !important;
-        padding-bottom: 0rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding: 0px 8px 0px 8px !important;
+        max-width: 100% !important;
     }
 
-    [data-testid="stHeader"] {background: rgba(0,0,0,0); padding-top: 2.5rem;}
-    [data-testid="stSidebar"] {background-color: #12161c;}
-
-    /* ---------------------------------------------------- */
-    /* 1. Header Superior (Barra de Cuenta) */
-    /* ---------------------------------------------------- */
-    .broker-header {
+    /* 3. Top Bar Minimalista */
+    .iq-topbar {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background-color: #161b22;
-        padding: 10px 25px;
-        border-radius: 8px;
-        margin-top: 10px;
-        margin-bottom: 10px;
-        border: 1px solid #21262d;
+        background-color: #12161f;
+        padding: 4px 12px;
+        border-bottom: 1px solid #1a202c;
     }
-    .balance-title {
-        color: #8b949e;
-        font-size: 11px;
+    .iq-tab-active {
+        background-color: #1a2230;
+        padding: 4px 12px;
+        border-radius: 4px 4px 0 0;
+        color: #ffffff;
         font-weight: bold;
-        text-transform: uppercase;
+        font-size: 12px;
+        border-top: 2px solid #ff9800;
+        display: inline-block;
     }
-    .balance-value {
-        color: #f2a900;
-        font-size: 26px;
+    .iq-tab-inactive {
+        padding: 4px 10px;
+        color: #5c697d;
+        font-size: 12px;
+        display: inline-block;
+    }
+    .iq-balance-title {
+        font-size: 9px;
+        color: #5c697d;
+        font-weight: 700;
+        text-align: right;
+    }
+    .iq-balance-value {
+        color: #ffb300;
+        font-size: 18px;
         font-weight: 800;
     }
+
+    /* 4. Panel Operativo Derecho */
+    .iq-panel {
+        background-color: #12161f;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid #1a202c;
+    }
     
-    /* Botón de Depósito */
-    div.stButton > button[key="btn_deposit"] {
-        background-color: #00c076 !important;
+    /* Reducir tamaño de inputs */
+    .stNumberInput > div > div > input {
+        background-color: #0b0e14 !important;
+        color: #ffffff !important;
+        border: 1px solid #232d3f !important;
+        font-weight: bold !important;
+        text-align: right !important;
+    }
+
+    /* 5. Botones Gigantes IQ Option COMPRA / VENTA */
+    div.stButton > button[key="btn_buy"] {
+        background: linear-gradient(180deg, #00e676 0%, #00b0ff 100%) !important;
+        background-color: #00e676 !important;
         color: #000000 !important;
-        font-size: 14px !important;
+        font-size: 16px !important;
         font-weight: 900 !important;
-        height: 38px !important;
+        height: 60px !important;
         border-radius: 6px !important;
         border: none !important;
-        box-shadow: 0px 4px 10px rgba(0, 192, 118, 0.3);
-    }
-    div.stButton > button[key="btn_deposit"]:hover {
-        background-color: #00e676 !important;
-    }
-
-    /* ---------------------------------------------------- */
-    /* 2. Layout Principal: Gráfico + Panel Lado a Lado */
-    /* ---------------------------------------------------- */
-    .main-broker-layout {
-        display: flex;
-        flex-direction: row;
-        width: 100%;
-        margin-top: 10px;
+        box-shadow: 0 4px 12px rgba(0, 230, 118, 0.2) !important;
     }
     
-    .chart-container {
-        flex: 3; /* 75% del ancho */
-        padding-right: 15px;
-    }
-    
-    .panel-container {
-        flex: 1; /* 25% del ancho */
-        background-color: #161b22;
-        padding: 20px;
-        border-radius: 8px;
-        border-left: 1px solid #21262d;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-    }
-
-    /* ---------------------------------------------------- */
-    /* 3. Botones Gigantes de Operación Profesional */
-    /* ---------------------------------------------------- */
-    /* Estilo para los botones en Streamlit */
-    div.stButton > button[key="btn_buy"] {
-        background-color: #00e676 !important;
-        color: #000000 !important;
-        font-size: 18px !important;
-        font-weight: 900 !important;
-        height: 60px !important;
-        border-radius: 8px !important;
-        border: none !important;
-        box-shadow: 0px 4px 15px rgba(0, 230, 118, 0.3);
-    }
-    div.stButton > button[key="btn_buy"]:hover {
-        background-color: #00ff7f !important;
-    }
-
     div.stButton > button[key="btn_sell"] {
+        background: linear-gradient(180deg, #ff1744 0%, #d50000 100%) !important;
         background-color: #ff1744 !important;
         color: #ffffff !important;
-        font-size: 18px !important;
+        font-size: 16px !important;
         font-weight: 900 !important;
         height: 60px !important;
-        border-radius: 8px !important;
+        border-radius: 6px !important;
         border: none !important;
-        box-shadow: 0px 4px 15px rgba(255, 23, 68, 0.3);
+        box-shadow: 0 4px 12px rgba(255, 23, 68, 0.2) !important;
     }
-    div.stButton > button[key="btn_sell"]:hover {
-        background-color: #ff3b30 !important;
-    }
-    
-    /* ---------------------------------------------------- */
-    /* 4. Estilos de Inputs y Métricas */
-    /* ---------------------------------------------------- */
-    .stNumberInput > div > div > input {
-        background-color: #0d1117 !important;
-        color: #e6edf3 !important;
-        border: 1px solid #30363d !important;
-    }
-    .stSelectbox > div > div > div {
-        background-color: #0d1117 !important;
-        color: #e6edf3 !important;
+
+    div.stButton > button[key="btn_depo"] {
+        background-color: #00c076 !important;
+        color: #000000 !important;
+        font-weight: 800 !important;
+        height: 32px !important;
+        border: none !important;
+        border-radius: 4px !important;
+        font-size: 12px !important;
     }
     
-    /* Estilos para el texto deSpread */
-    .spread-label {
-        text-align: center;
-        color: #8b949e;
-        font-size: 11px;
-        margin-top: 8px;
-    }
+    /* Ocultar etiquetas de Streamlit molestas */
+    label { color: #8b949e !important; font-size: 11px !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# ------------------ TOP BAR / HEADER BROKER ------------------
-with st.container():
-    col_h1, col_h2, col_h3 = st.columns([1.5, 2, 0.6])
-    
-    with col_h1:
-        # Menú simulado de pestañas horizontales superiores
-        st.markdown(f"""
-            <div style="font-size: 14px; font-weight: bold;">
-                <span style="color:#f2a900; border-bottom:2px solid #f2a900; padding-bottom:5px;">USD/JPY</span>&nbsp;&nbsp;&nbsp;
-                <span style="color:#8b949e;">EUR/USD</span>&nbsp;&nbsp;&nbsp;
-                <span style="color:#8b949e;">GBP/USD</span>&nbsp;&nbsp;&nbsp;
-                <span style="color:#8b949e;">+</span>
-            </div>
-        """, unsafe_allow_html=True)
+# ------------------ BARRA SUPERIOR LIMPIA ------------------
+st.markdown(f"""
+    <div class="iq-topbar">
+        <div>
+            <span style="font-size: 16px; color:#ff9800; font-weight:bold; margin-right:10px;">≡ &nbsp; +</span>
+            <span class="iq-tab-active">🟧 {st.session_state['activo_actual']}</span>
+            <span class="iq-tab-inactive">🇦🇺 AUD/USD</span>
+            <span class="iq-tab-inactive">🇪🇺 EUR/USD</span>
+            <span class="iq-tab-inactive">🇺🇸 US 500</span>
+        </div>
+        <div>
+            <div class="iq-balance-title">CUENTA DE PRÁCTICA</div>
+            <div class="iq-balance-value">${st.session_state['saldo_demo']:,.2f}</div>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
 
-    with col_h2:
-        st.markdown(f"""
-            <div style="text-align: right;">
-                <span class="balance-title">CUENTA DE PRÁCTICA</span><br>
-                <span class="balance-value">${st.session_state['saldo_demo']:,.2f}</span>
-            </div>
-        """, unsafe_allow_html=True)
+# Depósito alineado a la derecha
+_, c_dep = st.columns([9, 1])
+with c_dep:
+    if st.button("+DEPÓSITO", key="btn_depo", use_container_width=True):
+        st.session_state["saldo_demo"] += 10000.0
+        st.rerun()
 
-    with col_h3:
-        if st.button("💵 +DEPÓSITO", type="primary", use_container_width=True, key="btn_deposit"):
-            st.session_state["saldo_demo"] += 10000.0
-            st.rerun()
+# ------------------ CARGA Y PREPARACIÓN DE DATOS ------------------
+tf_map = {"1D": "1 Día (D1)", "1H": "1 Hora (H1)", "1M": "15 Minutos (M15)"}
+tf_sel = tf_map.get(st.session_state["tf_actual"], "1 Día (D1)")
 
-st.write("---")
-
-# ------------------ BARRA LATERAL (SELECTOR ACTIVO Y TEMPORALIDAD DE FORMA COMPACTA) ------------------
-st.sidebar.header("🪙 Activo")
-par_seleccionado = st.sidebar.selectbox("Seleccionar Activo", ["USD/JPY", "EUR/USD", "GBP/USD"])
-
-# Carga de datos
-df_datos, mensaje_estado = obtener_historico(par=par_seleccionado, temporalidad="1 Hora (H1)", cantidad=150)
+df_datos, mensaje_estado = obtener_historico(par="USD/JPY", temporalidad=tf_sel, cantidad=80)
 
 if df_datos is not None and not df_datos.empty and "Close" in df_datos.columns:
     df_datos = calcular_indicadores(df_datos)
     df_datos = generar_senales(df_datos)
 
     p_act = float(df_datos["Close"].iloc[-1])
-    col_rsi_name = "RSI_14" if "RSI_14" in df_datos.columns else ("RSI" if "RSI" in df_datos.columns else None)
-    r_act = float(df_datos[col_rsi_name].iloc[-1]) if col_rsi_name else 50.0
+    p_max = float(df_datos["High"].max()) if "High" in df_datos.columns else p_act
+    p_min = float(df_datos["Low"].min()) if "Low" in df_datos.columns else p_act
 
-    # ------------------ LAYOUT PRINCIPAL BROKER STYLE ------------------
-    col_grafico, col_operativa = st.columns([3, 1])
+    # ------------------ LAYOUT 85% GRÁFICO / 15% PANEL ------------------
+    col_chart, col_panel = st.columns([4.5, 1])
 
-    # COLUMNA IZQUIERDA: GRÁFICO TÉCNICO
-    with col_grafico:
+    # --- COLUMNA 1: GRÁFICO LIMPIO DE VELAS ---
+    with col_chart:
         fig = go.Figure()
 
-        # Velas Japonesas Profesionales
+        # Velas Japonesas Nitidas
         fig.add_trace(go.Candlestick(
             x=df_datos.index,
             open=df_datos['Open'] if 'Open' in df_datos.columns else df_datos['Close'],
             high=df_datos['High'] if 'High' in df_datos.columns else df_datos['Close'],
             low=df_datos['Low'] if 'Low' in df_datos.columns else df_datos['Close'],
             close=df_datos['Close'],
-            increasing_line_color='#00e676', decreasing_line_color='#ff1744',
-            increasing_fillcolor='#00e676', decreasing_fillcolor='#ff1744'
+            increasing_line_color='#00e676', increasing_fillcolor='#00e676',
+            decreasing_line_color='#ff1744', decreasing_fillcolor='#ff1744',
+            whiskerwidth=0.4
         ))
 
-        if "SMA_20" in df_datos.columns:
-            fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['SMA_20'], line=dict(color='#29b6f6', width=1.5), name='SMA 20'))
-        if "SMA_50" in df_datos.columns:
-            fig.add_trace(go.Scatter(x=df_datos.index, y=df_datos['SMA_50'], line=dict(color='#ff9800', width=1.5), name='SMA 50'))
-
+        # Configuración para que NO SALTE al tocar la pantalla
         fig.update_layout(
             template="plotly_dark",
-            paper_bgcolor="#0d1117", plot_bgcolor="#161b22",
-            height=600,
+            paper_bgcolor="#0b0e14",
+            plot_bgcolor="#0b0e14",
+            height=480,
             xaxis_rangeslider_visible=False,
-            margin=dict(l=10, r=10, t=10, b=10),
-            yaxis=dict(side="right", gridcolor="#21262d"),
-            xaxis=dict(gridcolor="#21262d")
+            margin=dict(l=0, r=40, t=10, b=0),
+            yaxis=dict(
+                side="right",
+                gridcolor="#151a23",
+                zeroline=False,
+                showline=False,
+                tickfont=dict(color="#5c697d", size=10)
+            ),
+            xaxis=dict(
+                gridcolor="#151a23",
+                zeroline=False,
+                showline=False,
+                tickfont=dict(color="#5c697d", size=10)
+            ),
+            hovermode=False # Desactiva popups molestos al tocar la pantalla
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        # Render sin barra de herramientas flotante
+        st.plotly_chart(
+            fig, 
+            use_container_width=True, 
+            config={
+                'displayModeBar': False,
+                'scrollZoom': False,
+                'doubleClick': False
+            }
+        )
 
+        # Barra de temporalidad limpia e inferior
+        b1, b2, b3, _, b_time = st.columns([0.8, 0.8, 0.8, 4, 2])
+        if b1.button("1D", key="t_1d"):
+            st.session_state["tf_actual"] = "1D"
+            st.rerun()
+        if b2.button("1H", key="t_1h"):
+            st.session_state["tf_actual"] = "1H"
+            st.rerun()
+        if b3.button("1M", key="t_1m"):
+            st.session_state["tf_actual"] = "1M"
+            st.rerun()
+        b_time.markdown(f"<div style='text-align:right; color:#5c697d; font-size:11px;'>{datetime.now().strftime('%d %b %H:%M:%S')}</div>", unsafe_allow_html=True)
 
-    # COLUMNA DERECHA: PANEL DE COMANDOS (REPLICANDO IQ OPTION)
-    with col_operativa:
-        st.subheader("ORDEN RÁPIDA")
+    # --- COLUMNA 2: PANEL DE CONTROL IQ OPTION ---
+    with col_panel:
+        st.markdown('<div class="iq-panel">', unsafe_allow_html=True)
         
-        inversion = st.number_input("INVERSIÓN ($)", min_value=1.0, value=100.0, step=10.0)
-        ipalancamiento = st.selectbox("APALANCAMIENTO", ["x100", "x500", "x1000"], index=2)
+        inversion = st.number_input("INVERSIÓN", min_value=1.0, value=1.0, step=1.0)
         
-        # Métrica de spread simulada
-        spread_sim = 0.00012
-        st.markdown(f"""
-            <div class="spread-label">SPREAD: <b>{spread_sim}</b></div>
-            <div style="text-align:center; color:#f2a900; font-size:18px; font-weight:800; margin-top:10px;">{p_act:.5f}</div>
+        st.markdown("""
+            <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#8b949e;">
+                <span>APALANCAMIENTO</span><b style="color:#ffffff;">×1000</b>
+            </div>
+            <div style="font-size:10px; color:#5c697d; margin-top:4px;">PRECIO MERCADO</div>
         """, unsafe_allow_html=True)
-        st.write("")
-
-        # Botón de Compra
-        if st.button(f"↗ COMPRAR", key="btn_buy", use_container_width=True):
-            if st.session_state["saldo_demo"] >= inversion:
-                s20 = df_datos["SMA_20"].iloc[-1] if "SMA_20" in df_datos.columns else p_act
-                
-                # Simulación de resultado técnico
-                es_ganador = p_act >= s20
-                pnl = (inversion * 0.85) if es_ganador else (-inversion)
-                
-                st.session_state["saldo_demo"] += pnl
-                st.session_state["historial_trades"].append({
-                    "H": datetime.now().strftime("%H:%M"),
-                    "Tipo": "BUY ↗",
-                    "A": par_seleccionado,
-                    "Pnl": f"{pnl:.2f}"
-                })
-                
-                if es_ganador:
-                    st.success(f"✅ Trade Exitoso: +${pnl:.2f} USD")
-                else:
-                    st.error(f"❌ Trade Fallido: -${abs(pnl):.2f} USD")
-                st.rerun()
-            else:
-                st.warning("Saldo insuficiente.")
-
-        st.write("")
-
-        # Botón de Venta
-        if st.button(f"↘ VENDER", key="btn_sell", use_container_width=True):
-            if st.session_state["saldo_demo"] >= inversion:
-                s20 = df_datos["SMA_20"].iloc[-1] if "SMA_20" in df_datos.columns else p_act
-                es_ganador = p_act <= s20
-                pnl = (inversion * 0.85) if es_ganador else (-inversion)
-                
-                st.session_state["saldo_demo"] += pnl
-                st.session_state["historial_trades"].append({
-                    "H": datetime.now().strftime("%H:%M"),
-                    "Tipo": "SELL ↘",
-                    "A": par_seleccionado,
-                    "Pnl": f"{pnl:.2f}"
-                })
-                
-                if es_ganador:
-                    st.success(f"✅ Trade Exitoso: +${pnl:.2f} USD")
-                else:
-                    st.error(f"❌ Trade Fallido: -${abs(pnl):.2f} USD")
-                st.rerun()
-            else:
-                st.warning("Saldo insuficiente.")
         
-        # Selectores de temporalidad compactos debajo de botones de operación
-        st.write("---")
-        temporalidad_seleccionada = st.radio("Temporalidad Gráfico", ["M15", "H1", "H4"], index=1, horizontal=True)
+        st.write("")
 
-        # ------------------ PESTAÑAS SECUNDARIAS COMPACTAS (IA & BACKTESTING) ------------------
-        with st.expander("🤖 Diagnóstico IA & 🧪 Backtesting"):
-            st.markdown("---")
-            st.subheader("🧪 Pruebas Retrospectivas")
-            cap_init = st.number_input("Capital Inicial ($)", value=10000.0, step=100.0, key="cap_b")
-            if st.button("Ejecutar Test", type="primary", key="btn_b"):
-                df_bt, resumen = ejecutar_backtesting(df_datos, capital_inicial=cap_init)
-                mc1, mc2, mc3 = st.columns(3)
-                mc1.metric("Final", resumen["Capital Final"])
-                mc2.metric("Rend.", resumen["Rendimiento Total"])
-                mc3.metric("Win%", resumen["Win Rate"])
+        # BOTÓN DE COMPRA
+        if st.button(f"↗ COMPRAR\n{p_act:.2f}", key="btn_buy", use_container_width=True):
+            if st.session_state["saldo_demo"] >= inversion:
+                s20 = df_datos["SMA_20"].iloc[-1] if "SMA_20" in df_datos.columns else p_act
+                pnl = (inversion * 0.85) if p_act >= s20 else (-inversion)
+                st.session_state["saldo_demo"] += pnl
+                st.session_state["historial_trades"].append({"Tipo": "BUY", "PnL": pnl, "Hora": datetime.now().strftime("%H:%M")})
+                st.rerun()
 
-            st.markdown("---")
-            st.subheader("🤖 Diagnóstico IA")
-            if st.button("Generar Informe", type="primary", key="btn_ia"):
+        st.markdown("<div style='text-align:center; font-size:10px; color:#5c697d; margin: 6px 0;'>SPREAD &nbsp; 14.100</div>", unsafe_allow_html=True)
+
+        # BOTÓN DE VENTA
+        if st.button(f"↘ VENDER\n{p_act:.2f}", key="btn_sell", use_container_width=True):
+            if st.session_state["saldo_demo"] >= inversion:
+                s20 = df_datos["SMA_20"].iloc[-1] if "SMA_20" in df_datos.columns else p_act
+                pnl = (inversion * 0.85) if p_act <= s20 else (-inversion)
+                st.session_state["saldo_demo"] += pnl
+                st.session_state["historial_trades"].append({"Tipo": "SELL", "PnL": pnl, "Hora": datetime.now().strftime("%H:%M")})
+                st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ------------------ HERRAMIENTAS ADICIONALES GUARDADAS ABAJO ------------------
+    st.write("")
+    with st.expander("⚙️ Herramientas de Análisis IA & Historial"):
+        t_hist, t_bt, t_ia = st.tabs(["📋 Historial", "🧪 Backtesting", "🤖 Analista IA"])
+        
+        with t_hist:
+            if st.session_state["historial_trades"]:
+                st.dataframe(pd.DataFrame(st.session_state["historial_trades"]), use_container_width=True)
+            else:
+                st.info("Sin operaciones registradas.")
+                
+        with t_bt:
+            if st.button("Ejecutar Test de Estrategia"):
+                _, res = ejecutar_backtesting(df_datos, capital_inicial=10000.0)
+                st.json(res)
+                
+        with t_ia:
+            if st.button("Generar Diagnóstico IA"):
                 s20_act = float(df_datos["SMA_20"].iloc[-1]) if "SMA_20" in df_datos.columns else p_act
                 s50_act = float(df_datos["SMA_50"].iloc[-1]) if "SMA_50" in df_datos.columns else p_act
-                sen_act = int(df_datos["Senal"].iloc[-1]) if "Senal" in df_datos.columns else 0
-                inf_ia = generar_informe_analista(par_seleccionado, temporalidad_seleccionada, p_act, r_act, s20_act, s50_act, sen_act, {})
-                st.markdown(inf_ia)
+                r_act = float(df_datos["RSI_14"].iloc[-1]) if "RSI_14" in df_datos.columns else 50.0
+                st.markdown(generar_informe_analista("BTC/USD", tf_sel, p_act, r_act, s20_act, s50_act, 1, {}))
 
 else:
-    st.error(f"Error al conectar con la fuente de datos: {mensaje_estado}")
+    st.error(f"Error al conectar con el servidor de datos: {mensaje_estado}")
+
 
 
 
