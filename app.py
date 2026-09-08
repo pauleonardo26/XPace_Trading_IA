@@ -190,11 +190,11 @@ with tab1:
 
 
 # ==============================================================================
-# PESTAÑA 2: BACKTESTING INTERACTIVO (SIMULADOR A CIEGAS)
+# PESTAÑA 2: BACKTESTING INTERACTIVO CON ESTRATEGIAS Y ANÁLISIS TÉCNICO
 # ==============================================================================
 with tab2:
-    st.write("### 🧪 Simulador de Toma de Decisiones en Vivo")
-    st.caption("Ponte a prueba: analiza la gráfica oculta, decide tu estrategia y comprueba si habrías ganado o perdido capital.")
+    st.write("### 🧪 Simulador de Toma de Decisiones y Estrategias Técnicas")
+    st.caption("Aplica tus herramientas de análisis (RSI, Bollinger, Soporte/Resistencia) sobre el gráfico a ciegas para respaldar tu estrategia.")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -207,7 +207,7 @@ with tab2:
         st.error("⚠️ Elige un día laborable (Lunes a Viernes).")
     else:
         ticker_bt = SIMBOLOS_FOREX[par_bt]
-        with st.spinner("Preparando escenario de simulación..."):
+        with st.spinner("Cargando mercado y generando datos técnicos..."):
             try:
                 df_bt = yf.download(tickers=ticker_bt, start=fecha_bt, end=fecha_bt + timedelta(days=1), interval="15m", progress=False)
                 if isinstance(df_bt.columns, pd.MultiIndex):
@@ -216,31 +216,91 @@ with tab2:
             except Exception:
                 df_bt = None
 
-        if df_bt is not None and len(df_bt) > 12:
+        if df_bt is not None and len(df_bt) > 15:
             df_bt['Eje_X_Tiempo'] = df_bt.index.strftime('%H:%M')
             
             # CORTAR EL MERCADO A LA MITAD DEL DÍA
             mitad = len(df_bt) // 2
-            df_visible = df_bt.iloc[:mitad]
-            df_futuro = df_bt.iloc[mitad:]
+            df_visible = df_bt.iloc[:mitad].copy()
+            df_futuro = df_bt.iloc[mitad:].copy()
 
-            st.warning("🔒 **MERCADO EN VIVO:** El futuro del gráfico está oculto. Observa las primeras velas del día y toma tu decisión.")
+            # ------------------------------------------------------------------
+            # CÁLCULO DE INDICADORES TÉCNICOS SOBRE LOS DATOS VISIBLES
+            # ------------------------------------------------------------------
+            # 1. Bandas de Bollinger (Periodo 20, 2 Desviaciones Estándar)
+            df_visible['SMA20'] = df_visible['Close'].rolling(window=20, min_periods=1).mean()
+            df_visible['STD20'] = df_visible['Close'].rolling(window=20, min_periods=1).std()
+            df_visible['BB_Upper'] = df_visible['SMA20'] + (df_visible['STD20'] * 2)
+            df_visible['BB_Lower'] = df_visible['SMA20'] - (df_visible['STD20'] * 2)
 
-            # DIBUJAR GRÁFICO VISIBLE (CORTE)
+            # 2. RSI (Relative Strength Index - 14 periodos)
+            delta = df_visible['Close'].diff()
+            gain = delta.clip(lower=0)
+            loss = -delta.clip(upper=0)
+            avg_gain = gain.rolling(window=14, min_periods=1).mean()
+            avg_loss = loss.rolling(window=14, min_periods=1).mean().replace(0, 0.00001)
+            rs = avg_gain / avg_loss
+            df_visible['RSI'] = 100 - (100 / (1 + rs))
+
+            # ------------------------------------------------------------------
+            # HERRAMIENTAS Y ESTRATEGIAS EN EL PANEL DEL ALUMNO
+            # ------------------------------------------------------------------
+            st.markdown("---")
+            st.write("### 🛠️ Herramientas de Análisis Técnico (Tu Estrategia)")
+            
+            col_ind1, col_ind2, col_ind3 = st.columns(3)
+            with col_ind1:
+                ver_bollinger = st.checkbox("🟢/🔴 Bandas de Bollinger", value=False, help="Muestra el techo y piso estocástico del precio.")
+            with col_ind2:
+                ver_rsi = st.checkbox("📊 Oscilador RSI (14)", value=False, help="Muestra zonas de Sobrecompra (>70) y Sobrevenda (<30).")
+            with col_ind3:
+                ver_niveles = st.checkbox("📐 Soporte y Resistencia", value=False, help="Dibuja automáticamente el máximo y mínimo visible como referencia.")
+
+            # DIBUJAR GRÁFICO VISIBLE SEGÚN SELECCIÓN DE HERRAMIENTAS
             fig_bt = go.Figure()
+
+            # Velas Japonesas
             fig_bt.add_trace(go.Candlestick(
                 x=df_visible['Eje_X_Tiempo'], open=df_visible['Open'], high=df_visible['High'],
                 low=df_visible['Low'], close=df_visible['Close'], name="Velas Visibles",
                 increasing_line_color='#00e676', decreasing_line_color='#ff1744'
             ))
+
+            # Capa: Bandas de Bollinger
+            if ver_bollinger:
+                fig_bt.add_trace(go.Scatter(x=df_visible['Eje_X_Tiempo'], y=df_visible['BB_Upper'], line=dict(color='#ff9800', width=1, dash='dot'), name='Banda Sup (Techo)'))
+                fig_bt.add_trace(go.Scatter(x=df_visible['Eje_X_Tiempo'], y=df_visible['SMA20'], line=dict(color='#2196f3', width=1), name='Media Central (SMA 20)'))
+                fig_bt.add_trace(go.Scatter(x=df_visible['Eje_X_Tiempo'], y=df_visible['BB_Lower'], line=dict(color='#ff9800', width=1, dash='dot'), name='Banda Inf (Piso)'))
+
+            # Capa: Soporte y Resistencia
+            if ver_niveles:
+                max_v = float(df_visible['High'].max())
+                min_v = float(df_visible['Low'].min())
+                fig_bt.add_hline(y=max_v, line_dash="dash", line_color="#ff1744", annotation_text="Techo (Resistencia)", annotation_position="top left")
+                fig_bt.add_hline(y=min_v, line_dash="dash", line_color="#00e676", annotation_text="Piso (Soporte)", annotation_position="bottom left")
+
             fig_bt.update_layout(
                 template="plotly_dark", paper_bgcolor="#0b0e14", plot_bgcolor="#0b0e14",
-                height=380, showlegend=False, xaxis_rangeslider_visible=False,
+                height=380, showlegend=ver_bollinger, xaxis_rangeslider_visible=False,
                 margin=dict(l=10, r=40, t=10, b=20),
                 yaxis=dict(title="💵 Precio", side="right", gridcolor="#1a202c"),
                 xaxis=dict(title="⏰ Tiempo Revelado Parcial", gridcolor="#1a202c", type="category")
             )
             st.plotly_chart(fig_bt, use_container_width=True)
+
+            # Capa: Sub-Gráfico RSI
+            if ver_rsi:
+                fig_rsi = go.Figure()
+                fig_rsi.add_trace(go.Scatter(x=df_visible['Eje_X_Tiempo'], y=df_visible['RSI'], line=dict(color='#e040fb', width=2), name="RSI"))
+                fig_rsi.add_hline(y=70, line_dash="dash", line_color="#ff1744", annotation_text="Sobrecompra (70)", annotation_position="top left")
+                fig_rsi.add_hline(y=30, line_dash="dash", line_color="#00e676", annotation_text="Sobrevenda (30)", annotation_position="bottom left")
+                fig_rsi.update_layout(
+                    template="plotly_dark", paper_bgcolor="#0b0e14", plot_bgcolor="#0b0e14",
+                    height=180, showlegend=False, margin=dict(l=10, r=40, t=10, b=20),
+                    yaxis=dict(title="RSI", side="right", range=[0, 100], gridcolor="#1a202c"),
+                    xaxis=dict(gridcolor="#1a202c", type="category")
+                )
+                st.plotly_chart(fig_rsi, use_container_width=True)
 
             # FORMULARIO DE DECISIÓN DEL ALUMNO
             st.markdown("---")
@@ -251,8 +311,21 @@ with tab2:
                 operacion = st.radio("1. ¿Qué decisión tomas?", ["🟢 COMPRAR", "🔴 VENDER"], key="bt_op")
             with c2:
                 usar_sl = st.radio("2. ¿Colocas Stop Loss (Protección)?", ["✅ SÍ (Usar Límite de Riesgo)", "❌ NO (Sin Límite)"], key="bt_sl")
+            
+            # CONTROL DINÁMICO DEL SLIDER SEGÚN LA SELECCIÓN
+            tiene_proteccion = "✅ SÍ" in usar_sl
+            
             with c3:
-                riesgo_porcentaje = st.slider("3. % de Cuenta a Arriesgar", 1, 10, 2, key="bt_risk")
+                riesgo_porcentaje = st.slider(
+                    "3. % de Cuenta a Arriesgar", 
+                    min_value=1, 
+                    max_value=10, 
+                    value=2, 
+                    disabled=not tiene_proteccion, # Desactivado en gris si marca "NO"
+                    key="bt_risk"
+                )
+                if not tiene_proteccion:
+                    st.caption("⚠️ **Riesgo Ilimitado:** Desactivado por no usar Stop Loss.")
 
             btn_simular = st.button("🚀 Revelar Futuro y Ejecutar Simulación", type="primary", use_container_width=True)
 
@@ -260,14 +333,12 @@ with tab2:
                 st.markdown("---")
                 st.write("### 📜 Resultado de la Simulación")
 
-                # Cálculo de la realidad del mercado futuro
+                # CÁLCULOS DEL MERCADO REVELADO
                 precio_entrada = float(df_visible['Close'].iloc[-1])
-                max_futuro = float(df_futuro['High'].max())
-                min_futuro = float(df_futuro['Low'].min())
                 precio_final = float(df_futuro['Close'].iloc[-1])
                 hora_corte = df_visible['Eje_X_Tiempo'].iloc[-1]
 
-                # DIBUJAR MERCADO COMPLETO (REVELADO)
+                # DIBUJAR MERCADO COMPLETO REVELADO
                 fig_revelado = go.Figure()
                 fig_revelado.add_trace(go.Candlestick(
                     x=df_bt['Eje_X_Tiempo'], open=df_bt['Open'], high=df_bt['High'],
@@ -275,24 +346,15 @@ with tab2:
                     increasing_line_color='#00e676', decreasing_line_color='#ff1744'
                 ))
                 
-                # REEMPLAZO SEGURO DE LA LÍNEA VERTICAL PARA EJES CATEGÓRICOS
                 fig_revelado.add_shape(
-                    type="line",
-                    x0=hora_corte, x1=hora_corte,
-                    y0=0, y1=1,
-                    yref="paper",
+                    type="line", x0=hora_corte, x1=hora_corte, y0=0, y1=1, yref="paper",
                     line=dict(color="#e040fb", width=2, dash="dash")
                 )
                 
                 fig_revelado.add_annotation(
-                    x=hora_corte,
-                    y=precio_entrada,
-                    text="📍 Tu Decisión",
-                    showarrow=True,
-                    arrowhead=2,
-                    arrowcolor="#e040fb",
-                    font=dict(color="#e040fb", size=12),
-                    bgcolor="#0b0e14"
+                    x=hora_corte, y=precio_entrada, text="📍 Tu Decisión",
+                    showarrow=True, arrowhead=2, arrowcolor="#e040fb",
+                    font=dict(color="#e040fb", size=12), bgcolor="#0b0e14"
                 )
                 
                 fig_revelado.update_layout(
@@ -304,32 +366,44 @@ with tab2:
                 )
                 st.plotly_chart(fig_revelado, use_container_width=True)
 
-                # EVALUACIÓN DE LA DECISIÓN DEL ALUMNO
+                # EVALUACIÓN EXACTA Y PEDAGÓGICA DE LA DECISIÓN
                 es_compra = "COMPRAR" in operacion
-                subio_mercado = precio_final > precio_entrada
-                cayo_mucho = min_futuro < (precio_entrada * 0.997)
+                gane_operacion = (es_compra and precio_final > precio_entrada) or (not es_compra and precio_final < precio_entrada)
 
-                # LECCIÓN DIDÁCTICA SEGÚN SU DECISIÓN
-                if "❌ NO" in usar_sl and cayo_mucho:
-                    st.error(f"""
-                    ### 🚨 ¡ALERTA PEDAGÓGICA: CUENTA EN RIESGO GRAVE!
-                    * **Lo que elegiste:** Decidiste **{operacion}** sin colocar Stop Loss.
-                    * **Lo que pasó:** El mercado cayó fuertemente durante la jornada a un mínimo de `{min_futuro:.4f}`.
-                    * **Lección de Trading:** Como no pusiste Stop Loss, mantuviste una pérdida flotante gigante que habría **liquidado el 80% de tu cuenta** antes de cualquier recuperación. ¡Nunca operes sin protección!
-                    """)
-                elif (es_compra and subio_mercado) or (not es_compra and not subio_mercado):
+                # DIAGNÓSTICO ESTRATÉGICO DE LA ESTRATEGIA UTILIZADA
+                rsi_val = df_visible['RSI'].iloc[-1]
+                estrategia_retroalimentacion = ""
+                if rsi_val > 68:
+                    estrategia_retroalimentacion = f" (Nota: El RSI marcaba `{rsi_val:.1f}`, indicando Zona de Sobrecompra ideal para Ventas)."
+                elif rsi_val < 32:
+                    estrategia_retroalimentacion = f" (Nota: El RSI marcaba `{rsi_val:.1f}`, indicando Zona de Sobrevenda ideal para Compras)."
+
+                if gane_operacion:
                     st.success(f"""
                     ### 🎉 ¡EXCELENTE LECTURA DE MERCADO!
                     * **Decisión Correcta:** Acertaste la dirección ({operacion}).
-                    * **Entrada:** `{precio_entrada:.4f}` ➔ **Cierre Máximo:** `{max_futuro:.4f}`
-                    * **Gestión de Riesgo:** Usar Stop Loss te mantuvo protegido con un riesgo controlado del {riesgo_porcentaje}%.
+                    * **Precio Entrada:** `{precio_entrada:.4f}` ➔ **Cierre Día:** `{precio_final:.4f}`
+                    * **Confirmación Estratégica:**{estrategia_retroalimentacion}
+                    * **Gestión de Riesgo:** {"Protegiste tu cuenta correctamente con el " + str(riesgo_porcentaje) + "% de Stop Loss." if tiene_proteccion else "⚠️ Ganaste esta vez, pero operar **sin Stop Loss** es extremadamente peligroso para tu capital."}
                     """)
                 else:
-                    st.warning(f"""
-                    ### 📉 OPERACIÓN CON PÉRDIDA CONTROLADA
-                    * **Resultado:** Elegiste **{operacion}**, pero el mercado se movió en dirección opuesta.
-                    * **Lo bueno de tu gestión:** Si activaste el Stop Loss, la pérdida se cerró automáticamente al {riesgo_porcentaje}%, manteniendo tu cuenta a salvo para la siguiente oportunidad.
-                    """)
+                    if not tiene_proteccion:
+                        # SIN STOP LOSS Y PERDIÓ (LECCIÓN IMPACTANTE)
+                        st.error(f"""
+                        ### 🚨 ¡ALERTA DE SEGURIDAD: CUENTA EN RIESGO GRAVE!
+                        * **Resultado:** Elegiste **{operacion}**, pero el mercado se movió en tu contra.
+                        * **Peligro Detectado:** Marcaste **❌ NO (Sin Límite)**. 
+                        * **Tiempo & Impacto:** En solo **2 a 3 velas (30-45 min)** el precio se fue en tu contra. Al no tener Stop Loss, la posición siguió acumulando pérdidas ilimitadas hasta comprometer seriamente tu capital.
+                        * **Lección de Trading:** Un trader profesional **siempre** define su límite de pérdida antes de entrar al mercado.
+                        """)
+                    else:
+                        # CON STOP LOSS Y PERDIÓ (PÉRDIDA CONTROLADA)
+                        st.warning(f"""
+                        ### 📉 OPERACIÓN CON PÉRDIDA CONTROLADA
+                        * **Resultado:** Elegiste **{operacion}**, pero el mercado se movió en dirección opuesta.
+                        * **Lo bueno de tu gestión:** Como activaste tu **Stop Loss**, la operación se cerró automáticamente protegiendo tu cuenta.
+                        * **Riesgo Respetado:** Solo perdiste el **{riesgo_porcentaje}%** programado y mantienes el 98% de tu capital intacto.
+                        """)
         else:
             st.error("No hay suficientes datos para simular en esta fecha.")
 
@@ -338,3 +412,4 @@ with tab2:
 # ==============================================================================
 with tab3:
     st.info("🚧 Pestaña de Evaluación IA en construcción.")
+
