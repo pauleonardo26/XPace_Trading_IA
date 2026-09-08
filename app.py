@@ -189,7 +189,7 @@ with tab1:
             st.error("No se encontraron datos de mercado para la fecha seleccionada.")
 
 
-==============================================================================
+#==============================================================================
 # PESTAÑA 2: BACKTESTING INTERACTIVO (SIMULADOR A CIEGAS)
 # ==============================================================================
 with tab2:
