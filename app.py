@@ -105,6 +105,8 @@ with tab1:
             except Exception as e:
                 df_datos = None
                 st.error(f"Error directo de conexión con Yahoo: {str(e)}")
+        
+
         # ----------------------------------------------------------------------
         # 1.4 CONSTRUCCIÓN DEL LIENZO GRÁFICO (ESTABLE CON EJE X DE DÍA Y HORA)
         # ----------------------------------------------------------------------
@@ -193,13 +195,12 @@ with tab1:
                 * **Meta de Ganancia (Take Profit):** Lo fijamos cerca de la resistencia en **{maximo:.4f}**, asegurando los beneficios en cuanto el precio alcance la cima de la vela.
                 """)
 
-     
         
 
 # ==============================================================================
 # 2.0 PESTAÑA: BACKTESTING (PRÓXIMAMENTE)
 # ==============================================================================
-with tab2:
+#with tab2:
     st.info("2.0 — Pestaña en espera. Se activará tras validar la Pesta
 # ==============================================================================
 # 3.0 PESTAÑA: EVALUACIÓN IA (PRÓXIMAMENTE)
