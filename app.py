@@ -189,7 +189,7 @@ with tab1:
             st.error("No se encontraron datos de mercado para la fecha seleccionada.")
 
 
-#==============================================================================
+# ==============================================================================
 # PESTAÑA 2: BACKTESTING INTERACTIVO (SIMULADOR A CIEGAS)
 # ==============================================================================
 with tab2:
@@ -219,7 +219,7 @@ with tab2:
         if df_bt is not None and len(df_bt) > 12:
             df_bt['Eje_X_Tiempo'] = df_bt.index.strftime('%H:%M')
             
-            # CORTAR EL MERCADO A LA MITAD DEL DÍA (Ocultar el futuro)
+            # CORTAR EL MERCADO A LA MITAD DEL DÍA
             mitad = len(df_bt) // 2
             df_visible = df_bt.iloc[:mitad]
             df_futuro = df_bt.iloc[mitad:]
@@ -238,7 +238,7 @@ with tab2:
                 height=380, showlegend=False, xaxis_rangeslider_visible=False,
                 margin=dict(l=10, r=40, t=10, b=20),
                 yaxis=dict(title="💵 Precio", side="right", gridcolor="#1a202c"),
-                xaxis=dict(title="⏰ Tiempo Revelo Parcial", gridcolor="#1a202c", type="category")
+                xaxis=dict(title="⏰ Tiempo Revelado Parcial", gridcolor="#1a202c", type="category")
             )
             st.plotly_chart(fig_bt, use_container_width=True)
 
@@ -265,6 +265,7 @@ with tab2:
                 max_futuro = float(df_futuro['High'].max())
                 min_futuro = float(df_futuro['Low'].min())
                 precio_final = float(df_futuro['Close'].iloc[-1])
+                hora_corte = df_visible['Eje_X_Tiempo'].iloc[-1]
 
                 # DIBUJAR MERCADO COMPLETO (REVELADO)
                 fig_revelado = go.Figure()
@@ -273,8 +274,26 @@ with tab2:
                     low=df_bt['Low'], close=df_bt['Close'], name="Velas Completas",
                     increasing_line_color='#00e676', decreasing_line_color='#ff1744'
                 ))
-                # Marcar punto donde decidió el alumno
-                fig_revelado.add_vline(x=df_visible['Eje_X_Tiempo'].iloc[-1], line_dash="dash", line_color="#e040fb", annotation_text="📍 Tu Decisión")
+                
+                # REEMPLAZO SEGURO DE LA LÍNEA VERTICAL PARA EJES CATEGÓRICOS
+                fig_revelado.add_shape(
+                    type="line",
+                    x0=hora_corte, x1=hora_corte,
+                    y0=0, y1=1,
+                    yref="paper",
+                    line=dict(color="#e040fb", width=2, dash="dash")
+                )
+                
+                fig_revelado.add_annotation(
+                    x=hora_corte,
+                    y=precio_entrada,
+                    text="📍 Tu Decisión",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowcolor="#e040fb",
+                    font=dict(color="#e040fb", size=12),
+                    bgcolor="#0b0e14"
+                )
                 
                 fig_revelado.update_layout(
                     template="plotly_dark", paper_bgcolor="#0b0e14", plot_bgcolor="#0b0e14",
@@ -313,7 +332,6 @@ with tab2:
                     """)
         else:
             st.error("No hay suficientes datos para simular en esta fecha.")
-
 
 # ==============================================================================
 # PESTAÑA 3 (EN DESARROLLO)
