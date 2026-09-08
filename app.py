@@ -17,7 +17,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🎓 XPace — Escuela de Trading")
-st.caption("Datos reales directo de Yahoo Finance con explicaciones pedagógicas de IA")
+st.caption("Aprende la estructura del mercado con estrategias trazadas directamente en el gráfico")
 
 # DICCIONARIOS Y CONSTANTES
 SIMBOLOS_FOREX = {
@@ -28,11 +28,10 @@ SIMBOLOS_FOREX = {
 }
 
 TEMPORALIDADES_YAHOO = {
-    "15 Minutos (Últimos 60 días)": "15m",
-    "1 Hora (Últimos 60 días)": "60m",
-    "1 Día (Histórico Completo)": "1d",
-    "1 Semana (Histórico Completo)": "1wk",
-    "1 Mes (Histórico Completo)": "1mo"
+    "15 Minutos (4 velas por hora)": "15m",
+    "1 Hora (1 vela por hora)": "60m",
+    "1 Día (1 vela por día)": "1d",
+    "1 Semana (1 vela por semana)": "1wk"
 }
 
 # ------------------------------------------------------------------------------
@@ -46,25 +45,25 @@ tab1, tab2, tab3 = st.tabs(["📈 Histórico Educativo", "🧪 Backtesting", "�
 with tab1:
     st.write("### 📌 Filtros de Mercado")
     
-    # 1.1 FILTROS DE MERCADO
-    par_sel = st.selectbox("Par de Forex", list(SIMBOLOS_FOREX.keys()), key="1.1_par")
-    tf_sel = st.selectbox("Temporalidades Nativas de Yahoo", list(TEMPORALIDADES_YAHOO.keys()), key="1.1_tf")
-    
-    fecha_defecto = date.today() - timedelta(days=7)
-    fecha_sel = st.date_input("Fecha a Consultar", value=fecha_defecto, max_value=date.today(), key="1.1_fecha", format="DD/MM/YYYY")
+    # FILTROS DE MERCADO
+    col1, col2 = st.columns(2)
+    with col1:
+        par_sel = st.selectbox("Par de Forex", list(SIMBOLOS_FOREX.keys()), key="1.1_par")
+        tf_sel = st.selectbox("Temporalidad (Duración de vela)", list(TEMPORALIDADES_YAHOO.keys()), key="1.1_tf")
+    with col2:
+        fecha_defecto = date.today() - timedelta(days=7)
+        fecha_sel = st.date_input("Fecha a Consultar", value=fecha_defecto, max_value=date.today(), key="1.1_fecha", format="DD/MM/YYYY")
 
-    # 1.2 CONTROL DE FIN DE SEMANA
     if fecha_sel.weekday() >= 5:
         st.error("⚠️ Los sábados y domingos el mercado Forex no genera datos. Elige un día de lunes a viernes.")
     else:
-        # 1.3 DESCARGA DE DATOS REGULADA
         ticker = SIMBOLOS_FOREX[par_sel]
         intervalo = TEMPORALIDADES_YAHOO[tf_sel]
         
         start_dt = fecha_sel
         end_dt = fecha_sel + timedelta(days=1)
 
-        with st.spinner("Conectando con Yahoo Finance..."):
+        with st.spinner("Cargando mercado e indicadores..."):
             try:
                 df_datos = yf.download(tickers=ticker, start=start_dt, end=end_dt, interval=intervalo, progress=False)
                 if isinstance(df_datos.columns, pd.MultiIndex):
@@ -72,54 +71,90 @@ with tab1:
                 df_datos = df_datos.dropna()
             except Exception as e:
                 df_datos = None
-                st.error(f"Error directo de conexión con Yahoo: {str(e)}")
+                st.error(f"Error al conectar con Yahoo Finance: {str(e)}")
 
-        # 1.4 CONSTRUCCIÓN DEL LIENZO GRÁFICO OPTIMIZADO (EJE X SIN AÑO + ZOOM INTEGRADO)
         if df_datos is not None and not df_datos.empty:
-            
-            # EJE X OPTIMIZADO: Formato solo Día/Mes y Hora (Sin Año)
-            df_datos['Fecha_Texto'] = df_datos.index.strftime('%d/%m %H:%M') if intervalo in ["15m", "60m"] else df_datos.index.strftime('%d/%m')
+            num_velas = len(df_datos)
+            st.info(f"📊 **Estructura del día {fecha_sel.strftime('%d/%m/%Y')}:** Se generaron **{num_velas} velas** en total ({tf_sel.split(' ')[0]} {tf_sel.split(' ')[1]}).")
 
+            # Formato de tiempo para el Eje X
+            if intervalo in ["15m", "60m"]:
+                df_datos['Eje_X_Tiempo'] = df_datos.index.strftime('%H:%M')
+            else:
+                df_datos['Eje_X_Tiempo'] = df_datos.index.strftime('%d/%m')
+
+            # Valores para trazar la estrategia
+            apertura_ref = float(df_datos['Open'].iloc[-1])
+            cierre_ref = float(df_datos['Close'].iloc[-1])
+            maximo_ref = float(df_datos['High'].max())
+            minimo_ref = float(df_datos['Low'].min())
+
+            # Dibuja un solo gráfico interactivo
             fig = go.Figure()
+
+            # 1. VELAS JAPONESAS
             fig.add_trace(go.Candlestick(
-                x=df_datos['Fecha_Texto'],
-                open=df_datos['Open'],
-                high=df_datos['High'],
-                low=df_datos['Low'],
-                close=df_datos['Close'],
+                x=df_datos['Eje_X_Tiempo'],
+                open=df_datos['Open'], high=df_datos['High'],
+                low=df_datos['Low'], close=df_datos['Close'],
+                name="Velas",
                 increasing_line_color='#00e676', increasing_fillcolor='#00e676',
                 decreasing_line_color='#ff1744', decreasing_fillcolor='#ff1744',
                 hovertext=[
-                    f"<b>Fecha: {row['Fecha_Texto']}</b><br>Apertura: {row['Open']:.4f}<br>Máx: {row['High']:.4f}<br>Mín: {row['Low']:.4f}<br>Cierre: {row['Close']:.4f}"
+                    f"<b>⏰ Hora: {row['Eje_X_Tiempo']}</b><br>"
+                    f"🟢 Apertura: {row['Open']:.4f}<br>"
+                    f"⬆️ Máximo: {row['High']:.4f}<br>"
+                    f"⬇️ Mínimo: {row['Low']:.4f}<br>"
+                    f"🔴 Cierre: {row['Close']:.4f}"
                     for _, row in df_datos.iterrows()
                 ],
                 hoverinfo="text"
             ))
 
+            # 2. LÍNEAS DE ESTRATEGIA SOBRE LAS VELAS
+            # Línea Azul: Entrada/Apertura actual
+            fig.add_hline(
+                y=apertura_ref, line_dash="solid", line_color="#29b6f6", line_width=1.5,
+                annotation_text="🔵 Precio de Entrada", annotation_position="top left",
+                annotation_font_color="#29b6f6"
+            )
+            # Línea Verde: Nivel de Ganancia (Resistencia / Techo del Día)
+            fig.add_hline(
+                y=maximo_ref, line_dash="dash", line_color="#00e676", line_width=1.5,
+                annotation_text="🎯 Take Profit (Techo Máximo)", annotation_position="top left",
+                annotation_font_color="#00e676"
+            )
+            # Línea Roja: Nivel de Riesgo (Soporte / Piso del Día)
+            fig.add_hline(
+                y=minimo_ref, line_dash="dash", line_color="#ff1744", line_width=1.5,
+                annotation_text="🛑 Stop Loss (Piso Mínimo)", annotation_position="bottom left",
+                annotation_font_color="#ff1744"
+            )
+
             fig.update_layout(
                 template="plotly_dark",
                 paper_bgcolor="#0b0e14",
                 plot_bgcolor="#0b0e14",
-                height=430,
+                height=450,
+                showlegend=False,
                 xaxis_rangeslider_visible=False,
-                margin=dict(l=5, r=35, t=10, b=30),
-                dragmode="pan", # Habilita desplazamiento táctil
+                margin=dict(l=10, r=40, t=20, b=30),
+                dragmode="pan",
                 yaxis=dict(
+                    title="💵 Precio de Cotización", 
                     side="right", 
                     gridcolor="#1a202c", 
-                    fixedrange=False # Permite escalar verticalmente
+                    fixedrange=False
                 ),
                 xaxis=dict(
+                    title="⏰ Tiempo (Hora / Minuto)", 
                     gridcolor="#1a202c", 
-                    type="category",
-                    nticks=5,
-                    tickangle=0,
-                    fixedrange=False # Permite hacer zoom horizontal
-                ),
-                hovermode="x"
+                    type="category", 
+                    nticks=6,
+                    fixedrange=False
+                )
             )
 
-            # Habilitamos controles de zoom en pantalla para móviles
             st.plotly_chart(
                 fig, 
                 use_container_width=True, 
@@ -130,48 +165,28 @@ with tab1:
                 }
             )
 
-            # 1.5 ANÁLISIS VINCULADO STRICTAMENTE A LA VELA FINAL DEL DÍA SELECCIONADO
-            if st.button("💡 Analizar con Profesor IA", type="primary", use_container_width=True, key="1.5_btn_analisis"):
+            # ANÁLISIS DEL PROFESOR IA
+            if st.button("💡 Analizar Estrategia con Profesor IA", type="primary", use_container_width=True, key="1.5_btn_analisis"):
                 ultima_fecha = df_datos.index[-1].strftime('%d/%m/%Y a las %H:%M hrs')
-                cierre = float(df_datos['Close'].iloc[-1])
-                apertura = float(df_datos['Open'].iloc[-1])
-                maximo = float(df_datos['High'].iloc[-1])
-                minimo = float(df_datos['Low'].iloc[-1])
                 
-                es_alcista = cierre >= apertura
-                cuerpo = abs(cierre - apertura)
-                sombra_inf = min(cierre, apertura) - minimo
-
                 st.markdown("---")
-                st.markdown(f"## 📖 Lección Didáctica: Análisis del {par_sel}")
+                st.markdown(f"## 📖 Lección Didáctica: Estrategia de Soporte y Resistencia ({par_sel})")
                 st.caption(f"Registro analizado: **{ultima_fecha}** | Temporalidad: **{tf_sel}**")
 
                 st.markdown(f"""
-                ### 1. ¿Qué está sucediendo exactamente en esta hora o día?
-                Si observamos el eje X en la parte inferior del gráfico, nos ubicamos en la vela correspondiente al **{ultima_fecha}**. En esta fracción de tiempo, el precio abrió en **{apertura:.4f}** y tuvo su cierre en **{cierre:.4f}**. 
-                
-                Dado que el precio de cierre fue {"superior" if es_alcista else "inferior"} al de apertura, la vela se pinta de color **{"VERDE 🟢" if es_alcista else "ROJO 🔴"}**. Esto nos indica que durante este periodo el mercado estuvo bajo el dominio principal de los **{"compradores empujando el precio hacia arriba" if es_alcista else "vendedores presionando la cotización a la baja"}**.
+                ### 1. Guía de Lectura de la Estrategia en el Gráfico
+                Para aprender a operar este escenario sin confundirte, observa las **3 líneas horizontales** trazadas directamente sobre las velas:
 
-                ### 2. Anatomía de la Vela y lectura de fuerza
-                Mirando en detalle los extremos superior e inferior de esta vela:
-                * **El Techo (Máximo alcanzado):** Llegó hasta **{maximo:.4f}**. La pequeña mecha superior nos muestra el punto más alto donde los compradores intentaron llevar el precio antes de encontrar resistencia.
-                * **El Piso (Mínimo alcanzado):** Cayó hasta **{minimo:.4f}**. 
-                
-                {"**Observación pedagógica:** Hay una cola o mecha inferior pronunciada. Esto significa que los vendedores intentaron tumbar el mercado, pero entraron compradores con fuerza a defender el precio en la zona baja. Este patrón se conoce como **Martillo** y suele anunciar rebotes a la subida." if sombra_inf > (cuerpo * 1.5) else "La estructura muestra un cuerpo sólido, lo que confirma que la tendencia de esta hora tiene continuidad y fuerza clara."}
+                * **🔵 Línea Azul ({apertura_ref:.4f}):** Representa el **Punto de Entrada**. Es la cotización donde la estrategia evalúa la oportunidad de compra o venta.
+                * **🎯 Línea Verde ({maximo_ref:.4f}):** Es la **Meta de Ganancia (Take Profit)**. Coincide con el precio más alto alcanzado en la jornada (Techo / Resistencia). Si el precio toca este nivel, aseguras tus beneficios.
+                * **🛑 Línea Roja ({minimo_ref:.4f}):** Es el **Límite de Riesgo (Stop Loss)**. Coincide con el precio más bajo de la jornada (Piso / Soporte). Si el mercado se regresa y toca este piso, la posición se cierra para proteger tu capital.
 
-                ### 3. Recomendación de Indicadores para aprender a operar (RSI)
-                Para saber si es un buen momento de entrar y no comprar cuando el precio está en su punto más caro, podemos usar el indicador **RSI (Índice de Fuerza Relativa)** en periodo 14:
-                * **Si el RSI marca menos de 30:** El precio se considera **"Sobrevendido"** (está regalado/barato). Es la zona idónea donde los profesionales buscan oportunidades de **COMPRA 🟢**.
-                * **Si el RSI marca más de 70:** El precio se encuentra **"Sobrecomprado"** (demasiado inflado). Es la zona de peligro para comprar y la ideal para buscar **VENTAS 🔴**.
-
-                ### 4. Estrategia Pedagógica y Plan de Riesgo
-                Como alumnos de trading, nunca debemos entrar al mercado sin una protección en caso de que la vela cambie de rumbo:
-                * **Dirección sugerida según el análisis:** **{"COMPRAR 🟢" if es_alcista else "VENDER 🔴"}**.
-                * **Límite de Seguridad (Stop Loss):** Se debe colocar justo en **{minimo:.4f}**. Si el precio rompe este piso hacia abajo, el sistema cierra automáticamente tu posición para evitar pérdidas mayores.
-                * **Meta de Ganancia (Take Profit):** Lo fijamos cerca de la resistencia en **{maximo:.4f}**, asegurando los beneficios en cuanto el precio alcance la cima de la vela.
+                ### 2. Lección Didáctica de Temporalidad
+                * **¿Por qué la temporalidad de {tf_sel.split(' ')[0]} {tf_sel.split(' ')[1]} es útil aquí?**
+                  Al analizar en esta temporalidad, se observa cómo el mercado respeta los rebotes entre la **Línea Roja (Piso)** y la **Línea Verde (Techo)**. Esta estructura clara le permite al alumno definir su plan de trading con un riesgo perfectamente controlado.
                 """)
         else:
-            st.error("No se encontraron datos disponibles para la fecha seleccionada.")
+            st.error("No se encontraron datos de mercado para la fecha seleccionada.")
 
 # ==============================================================================
 # PESTAÑAS 2 Y 3 (EN DESARROLLO)
