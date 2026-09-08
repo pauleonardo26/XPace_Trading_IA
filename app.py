@@ -106,9 +106,11 @@ with tab1:
                 df_datos = None
                 st.error(f"Error directo de conexión con Yahoo: {str(e)}")
         # ----------------------------------------------------------------------
-        # 1.4 CONSTRUCCIÓN DEL LIENZO GRÁFICO (ZOOM HABILITADO)
+        # 1.4 CONSTRUCCIÓN DEL LIENZO GRÁFICO (ESTABLE CON EJE X DE DÍA Y HORA)
         # ----------------------------------------------------------------------
         if df_datos is not None and not df_datos.empty:
+            
+            # Filtrar exactamente el rango de datos para evitar amontonamiento
             fig = go.Figure()
             fig.add_trace(go.Candlestick(
                 x=df_datos.index,
@@ -124,74 +126,73 @@ with tab1:
                 template="plotly_dark",
                 paper_bgcolor="#0b0e14",
                 plot_bgcolor="#0b0e14",
-                height=450,
+                height=420,
                 xaxis_rangeslider_visible=False,
                 margin=dict(l=10, r=40, t=10, b=10),
-                yaxis=dict(side="right", gridcolor="#1a202c", fixedrange=False),
-                xaxis=dict(gridcolor="#1a202c", fixedrange=False), # Permite hacer Zoom horizontal
-                hovermode="x"
+                # Eje Y estable para evitar saltos de cámara
+                yaxis=dict(side="right", gridcolor="#1a202c", fixedrange=True),
+                # Eje X configurado con formato claro de Hora y Día
+                xaxis=dict(
+                    gridcolor="#1a202c", 
+                    tickformat="%d/%m %H:%M",
+                    type="category" # Mantiene el espacio uniforme entre velas sin huecos
+                ),
+                hovermode="x unified"
             )
 
-            # Permite hacer zoom táctil (Pinch-to-zoom)
+            # Desactivar gestos bruscos para controlar la pantalla táctil
             st.plotly_chart(
                 fig, 
                 use_container_width=True, 
-                config={
-                    'displayModeBar': False,
-                    'scrollZoom': True
-                }
+                config={'displayModeBar': False}
             )
 
             # ------------------------------------------------------------------
-            # 1.5 BOTÓN Y CAJA DE ANÁLISIS DEL PROFESOR IA (CLASE PRÁCTICA)
+            # 1.5 ANÁLISIS DETALLADO DEL PROFESOR IA (LECTURA FLUIDA)
             # ------------------------------------------------------------------
             if st.button("💡 Analizar con Profesor IA", type="primary", use_container_width=True, key="1.5_btn_analisis"):
                 
-                # Extracción de datos de la última vela para la clase
-                ultima_fecha = df_datos.index[-1].strftime('%d/%m/%Y %H:%M')
+                # Datos de la vela para el análisis
+                ultima_fecha = df_datos.index[-1].strftime('%d/%m/%Y a las %H:%M hrs')
                 cierre = float(df_datos['Close'].iloc[-1])
                 apertura = float(df_datos['Open'].iloc[-1])
                 maximo = float(df_datos['High'].iloc[-1])
                 minimo = float(df_datos['Low'].iloc[-1])
                 
                 es_alcista = cierre >= apertura
-                tipo_direccion = "ALCISTA 🟢 (Oportunidad de COMPRA)" if es_alcista else "BAJISTA 🔴 (Oportunidad de VENTA)"
-                
-                # Identificación simplificada del patrón de la vela
                 cuerpo = abs(cierre - apertura)
-                sombra_inferior = min(cierre, apertura) - minimo
-                
-                if sombra_inferior > (cuerpo * 2):
-                    patron_vela = "Vela tipo **MARTILLO 🔨** (El precio cayó pero rebotó con mucha fuerza. Señal de cambio a subida)."
-                elif es_alcista:
-                    patron_vela = "Vela de **IMPULSO VERDE 🟢** (Los compradores tienen el control absoluto en esta hora)."
-                else:
-                    patron_vela = "Vela de **PRESIÓN ROJA 🔴** (Dominio de los vendedores empujando el precio hacia abajo)."
+                sombra_inf = min(cierre, apertura) - minimo
+                sombra_sup = maximo - max(cierre, apertura)
 
-                analisis_html = f"""
-                <div style="background-color: #f5f2eb; color: #1a1a1a; padding: 20px; border-radius: 8px; font-family: sans-serif; line-height: 1.6; border: 1px solid #dcd6cd;">
-                    <h3 style="color: #000000; margin-top:0;">🗣️ Clase Didáctica del Profesor IA</h3>
-                    <p style="margin-bottom: 5px;"><b>Par:</b> {par_sel} | <b>Intervalo:</b> {tf_sel}</p>
-                    <hr style="border: 0.5px solid #ccc;">
-                    
-                    <p><b>1. 📍 Ubicación en el Gráfico (Eje X / Fecha y Hora):</b><br>
-                    En la vela del día/hora <b>{ultima_fecha}</b>, la dirección principal del mercado es <b>{tipo_direccion}</b>.</p>
-                    
-                    <p><b>2. 🔍 ¿Qué tipo de vela tenemos aquí?:</b><br>
-                    Analizando la figura de la vela: {patron_vela}</p>
-                    
-                    <p><b>3. 💡 Sugerencia de Indicadores para la Estrategia (RSI):</b><br>
-                    • Si vas a configurar un indicador <b>RSI en periodo 14</b>:<br>
-                    - Si el RSI está por debajo de <b>30</b>: Te confirma que el precio está demasiado barato (Sobrevendido). <i>¡Excelente momento para buscar COMPRAS!</i><br>
-                    - Si el RSI está por encima de <b>70</b>: Te avisa que el precio está muy caro (Sobrecomprado). <i>¡Ideal para buscar VENTAS!</i></p>
-                    
-                    <p><b>4. 🎯 Plan de Acción Recomendado:</b><br>
-                    • <b>Entrada sugerida:</b> Buscar posición { "Alcista (COMPRA)" if es_alcista else "Bajista (VENTA)" }.<br>
-                    • <b>Tope de Pérdida (Stop Loss):</b> Colócalo en el nivel de <b>{minimo:.4f}</b> (debajo de la cola de la vela).<br>
-                    • <b>Meta de Ganancia (Take Profit):</b> Apunta al objetivo en <b>{maximo:.4f}</b>.</p>
-                </div>
-                """
-                st.markdown(analisis_html, unsafe_allow_html=True)
+                st.markdown("---")
+                st.markdown(f"## 📖 Lección Didáctica: Análisis del {par_sel}")
+                st.caption(f"Registro analizado: **{ultima_fecha}** | Temporalidad: **{tf_sel}**")
+
+                st.markdown(f"""
+                ### 1. ¿Qué está sucediendo exactamente en esta hora o día?
+                Si observamos el eje X en la parte inferior del gráfico, nos ubicamos en la vela correspondiente al **{ultima_fecha}**. En esta fracción de tiempo, el precio abrió en **{apertura:.4f}** y tuvo su cierre en **{cierre:.4f}**. 
+                
+                Dado que el precio de cierre fue {"superior" if es_alcista else "inferior"} al de apertura, la vela se pinta de color **{"VERDE 🟢" if es_alcista else "ROJO 🔴"}**. Esto nos indica que durante este periodo el mercado estuvo bajo el dominio principal de los **{"compradores empujando el precio hacia arriba" if es_alcista else "vendedores presionando la cotización a la baja"}**.
+
+                ### 2. Anatomía de la Vela y lectura de fuerza
+                Mirando en detalle los extremos superior e inferior de esta vela:
+                * **El Techo (Máximo alcanzado):** Llegó hasta **{maximo:.4f}**. La pequeña mecha superior nos muestra el punto más alto donde los compradores intentaron llevar el precio antes de encontrar resistencia.
+                * **El Piso (Mínimo alcanzado):** Cayó hasta **{minimo:.4f}**. 
+                
+                {"**Observación pedagógica:** Hay una cola o mecha inferior pronunciada. Esto significa que los vendedores intentaron tumbar el mercado, pero entraron compradores con fuerza a defender el precio en la zona baja. Este patrón se conoce como **Martillo** y suele anunciar rebotes a la subida." if sombra_inf > (cuerpo * 1.5) else "La estructura muestra un cuerpo sólido, lo que confirma que la tendencia de esta hora tiene continuidad y fuerza clara."}
+
+                ### 3. Recomendación de Indicadores para aprender a operar (RSI)
+                Para saber si es un buen momento de entrar y no comprar cuando el precio está en su punto más caro, podemos usar el indicador **RSI (Índice de Fuerza Relativa)** en periodo 14:
+                * **Si el RSI marca menos de 30:** El precio se considera **"Sobrevendido"** (está regalado/barato). Es la zona idónea donde los profesionales buscan oportunidades de **COMPRA 🟢**.
+                * **Si el RSI marca más de 70:** El precio se encuentra **"Sobrecomprado"** (demasiado inflado). Es la zona de peligro para comprar y la ideal para buscar **VENTAS 🔴**.
+
+                ### 4. Estrategia Pedagógica y Plan de Riesgo
+                Como alumnos de trading, nunca debemos entrar al mercado sin una protección en caso de que la vela cambie de rumbo:
+                * **Dirección sugerida según el análisis:** **{"COMPRAR 🟢" if es_alcista else "VENDER 🔴"}**.
+                * **Límite de Seguridad (Stop Loss):** Se debe colocar justo en **{minimo:.4f}**. Si el precio rompe este piso hacia abajo, el sistema cierra automáticamente tu posición para evitar pérdidas mayores.
+                * **Meta de Ganancia (Take Profit):** Lo fijamos cerca de la resistencia en **{maximo:.4f}**, asegurando los beneficios en cuanto el precio alcance la cima de la vela.
+                """)
+
      
         
 
@@ -199,9 +200,7 @@ with tab1:
 # 2.0 PESTAÑA: BACKTESTING (PRÓXIMAMENTE)
 # ==============================================================================
 with tab2:
-    st.info("2.0 — Pestaña en espera. Se activará tras validar la Pestaña 1.0.")
-
-
+    st.info("2.0 — Pestaña en espera. Se activará tras validar la Pesta
 # ==============================================================================
 # 3.0 PESTAÑA: EVALUACIÓN IA (PRÓXIMAMENTE)
 # ==============================================================================
