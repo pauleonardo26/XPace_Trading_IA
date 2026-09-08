@@ -105,9 +105,8 @@ with tab1:
             except Exception as e:
                 df_datos = None
                 st.error(f"Error directo de conexión con Yahoo: {str(e)}")
-
         # ----------------------------------------------------------------------
-        # 1.4 CONSTRUCCIÓN DEL LIENZO GRÁFICO (ESTÁTICO PARA MÓVIL)
+        # 1.4 CONSTRUCCIÓN DEL LIENZO GRÁFICO (ZOOM HABILITADO)
         # ----------------------------------------------------------------------
         if df_datos is not None and not df_datos.empty:
             fig = go.Figure()
@@ -125,58 +124,76 @@ with tab1:
                 template="plotly_dark",
                 paper_bgcolor="#0b0e14",
                 plot_bgcolor="#0b0e14",
-                height=400,
+                height=450,
                 xaxis_rangeslider_visible=False,
-                margin=dict(l=5, r=35, t=10, b=10),
-                yaxis=dict(side="right", gridcolor="#1a202c", fixedrange=True),
-                xaxis=dict(gridcolor="#1a202c", fixedrange=True),
-                hovermode=False
+                margin=dict(l=10, r=40, t=10, b=10),
+                yaxis=dict(side="right", gridcolor="#1a202c", fixedrange=False),
+                xaxis=dict(gridcolor="#1a202c", fixedrange=False), # Permite hacer Zoom horizontal
+                hovermode="x"
             )
 
+            # Permite hacer zoom táctil (Pinch-to-zoom)
             st.plotly_chart(
                 fig, 
                 use_container_width=True, 
-                config={'displayModeBar': False, 'staticPlot': True}
+                config={
+                    'displayModeBar': False,
+                    'scrollZoom': True
+                }
             )
 
             # ------------------------------------------------------------------
-            # 1.5 BOTÓN Y CAJA DE ANÁLISIS DEL PROFESOR IA
+            # 1.5 BOTÓN Y CAJA DE ANÁLISIS DEL PROFESOR IA (CLASE PRÁCTICA)
             # ------------------------------------------------------------------
             if st.button("💡 Analizar con Profesor IA", type="primary", use_container_width=True, key="1.5_btn_analisis"):
-                cierre_actual = float(df_datos['Close'].iloc[-1])
-                apertura_actual = float(df_datos['Open'].iloc[-1])
-                maximo = float(df_datos['High'].max())
-                minimo = float(df_datos['Low'].min())
-                total_velas = len(df_datos)
                 
-                es_verde = cierre_actual >= apertura_actual
-                direccion = "ALCISTA (Compradores)" if es_verde else "BAJISTA (Vendedores)"
+                # Extracción de datos de la última vela para la clase
+                ultima_fecha = df_datos.index[-1].strftime('%d/%m/%Y %H:%M')
+                cierre = float(df_datos['Close'].iloc[-1])
+                apertura = float(df_datos['Open'].iloc[-1])
+                maximo = float(df_datos['High'].iloc[-1])
+                minimo = float(df_datos['Low'].iloc[-1])
                 
+                es_alcista = cierre >= apertura
+                tipo_direccion = "ALCISTA 🟢 (Oportunidad de COMPRA)" if es_alcista else "BAJISTA 🔴 (Oportunidad de VENTA)"
+                
+                # Identificación simplificada del patrón de la vela
+                cuerpo = abs(cierre - apertura)
+                sombra_inferior = min(cierre, apertura) - minimo
+                
+                if sombra_inferior > (cuerpo * 2):
+                    patron_vela = "Vela tipo **MARTILLO 🔨** (El precio cayó pero rebotó con mucha fuerza. Señal de cambio a subida)."
+                elif es_alcista:
+                    patron_vela = "Vela de **IMPULSO VERDE 🟢** (Los compradores tienen el control absoluto en esta hora)."
+                else:
+                    patron_vela = "Vela de **PRESIÓN ROJA 🔴** (Dominio de los vendedores empujando el precio hacia abajo)."
+
                 analisis_html = f"""
-                <div style="background-color: #f5f2eb; color: #1a1a1a; padding: 18px; border-radius: 8px; font-family: sans-serif; line-height: 1.5; border: 1px solid #dcd6cd;">
-                    <h3 style="color: #000000; margin-top:0;">🗣️ Lección del Profesor IA — {par_sel}</h3>
-                    <p><b>Intervalo de Yahoo:</b> {tf_sel} | <b>Velas analizadas:</b> {total_velas}</p>
+                <div style="background-color: #f5f2eb; color: #1a1a1a; padding: 20px; border-radius: 8px; font-family: sans-serif; line-height: 1.6; border: 1px solid #dcd6cd;">
+                    <h3 style="color: #000000; margin-top:0;">🗣️ Clase Didáctica del Profesor IA</h3>
+                    <p style="margin-bottom: 5px;"><b>Par:</b> {par_sel} | <b>Intervalo:</b> {tf_sel}</p>
                     <hr style="border: 0.5px solid #ccc;">
                     
-                    <p><b>1. Estado actual del precio:</b><br>
-                    El último precio real registrado fue de <b>{cierre_actual:.4f}</b>. La vela más reciente se cerró con una dinámica <b>{direccion}</b>.</p>
+                    <p><b>1. 📍 Ubicación en el Gráfico (Eje X / Fecha y Hora):</b><br>
+                    En la vela del día/hora <b>{ultima_fecha}</b>, la dirección principal del mercado es <b>{tipo_direccion}</b>.</p>
                     
-                    <p><b>2. Rango de movimiento en el gráfico:</b><br>
-                    • El punto más alto (Resistencia del periodo) llegó a <b>{maximo:.4f}</b>.<br>
-                    • El punto más bajo (Soporte del periodo) cayó hasta <b>{minimo:.4f}</b>.</p>
+                    <p><b>2. 🔍 ¿Qué tipo de vela tenemos aquí?:</b><br>
+                    Analizando la figura de la vela: {patron_vela}</p>
                     
-                    <p><b>3. Lectura de Velas Japonesas:</b><br>
-                    Observa los extremos de las velas (las mechas). Cuando ves mechas largas en la zona de <b>{minimo:.4f}</b>, el mercado nos enseña que hubo rechazo a seguir bajando (presión de compra). Si la vela es roja y de cuerpo ancho, los vendedores tuvieron el control total en ese intervalo.</p>
+                    <p><b>3. 💡 Sugerencia de Indicadores para la Estrategia (RSI):</b><br>
+                    • Si vas a configurar un indicador <b>RSI en periodo 14</b>:<br>
+                    - Si el RSI está por debajo de <b>30</b>: Te confirma que el precio está demasiado barato (Sobrevendido). <i>¡Excelente momento para buscar COMPRAS!</i><br>
+                    - Si el RSI está por encima de <b>70</b>: Te avisa que el precio está muy caro (Sobrecomprado). <i>¡Ideal para buscar VENTAS!</i></p>
                     
-                    <p><b>4. Gestión de Riesgo Pedagógica:</b><br>
-                    • <b>Stop Loss (Tope de pérdida):</b> Un nivel lógico de protección se sitúa justo por debajo del mínimo (<b>{minimo:.4f}</b>).<br>
-                    • <b>Take Profit (Meta de ganancia):</b> La zona objetivo de cobro se ubica cerca del máximo histórico reciente (<b>{maximo:.4f}</b>).</p>
+                    <p><b>4. 🎯 Plan de Acción Recomendado:</b><br>
+                    • <b>Entrada sugerida:</b> Buscar posición { "Alcista (COMPRA)" if es_alcista else "Bajista (VENTA)" }.<br>
+                    • <b>Tope de Pérdida (Stop Loss):</b> Colócalo en el nivel de <b>{minimo:.4f}</b> (debajo de la cola de la vela).<br>
+                    • <b>Meta de Ganancia (Take Profit):</b> Apunta al objetivo en <b>{maximo:.4f}</b>.</p>
                 </div>
                 """
                 st.markdown(analisis_html, unsafe_allow_html=True)
-        else:
-            st.error("No se encontraron datos disponibles para este rango/fecha.")
-
+     
+        
 
 # ==============================================================================
 # 2.0 PESTAÑA: BACKTESTING (PRÓXIMAMENTE)
