@@ -51,27 +51,18 @@ with tab1:
     tf_sel = st.selectbox("Temporalidades Nativas de Yahoo", list(TEMPORALIDADES_YAHOO.keys()), key="1.1_tf")
     
     fecha_defecto = date.today() - timedelta(days=7)
-    # Formato ajustado en minúsculas válido para Streamlit
     fecha_sel = st.date_input("Fecha a Consultar", value=fecha_defecto, max_value=date.today(), key="1.1_fecha", format="DD/MM/YYYY")
 
     # 1.2 CONTROL DE FIN DE SEMANA
     if fecha_sel.weekday() >= 5:
         st.error("⚠️ Los sábados y domingos el mercado Forex no genera datos. Elige un día de lunes a viernes.")
     else:
-        # 1.3 DESCARGA DE DATOS REALES
+        # 1.3 DESCARGA DE DATOS REGULADA
         ticker = SIMBOLOS_FOREX[par_sel]
         intervalo = TEMPORALIDADES_YAHOO[tf_sel]
         
-        if intervalo in ["15m", "60m"]:
-            hace_50_dias = date.today() - timedelta(days=50)
-            if fecha_sel < hace_50_dias:
-                fecha_sel = hace_50_dias
-                st.warning("⚠️ Yahoo Finance solo provee datos de 15m y 1h para los últimos 50 días. Mostrando el límite máximo permitido.")
-            start_dt = fecha_sel
-            end_dt = fecha_sel + timedelta(days=5)
-        else:
-            start_dt = fecha_sel - timedelta(days=180)
-            end_dt = fecha_sel + timedelta(days=5)
+        start_dt = fecha_sel
+        end_dt = fecha_sel + timedelta(days=1)
 
         with st.spinner("Conectando con Yahoo Finance..."):
             try:
@@ -83,11 +74,11 @@ with tab1:
                 df_datos = None
                 st.error(f"Error directo de conexión con Yahoo: {str(e)}")
 
-        # 1.4 CONSTRUCCIÓN DEL LIENZO GRÁFICO (EJE X OPTIMIZADO PARA MÓVIL)
+        # 1.4 CONSTRUCCIÓN DEL LIENZO GRÁFICO OPTIMIZADO (EJE X SIN AÑO + ZOOM INTEGRADO)
         if df_datos is not None and not df_datos.empty:
             
-            # Formato de fecha para el gráfico en texto limpio
-            df_datos['Fecha_Texto'] = df_datos.index.strftime('%d/%m/%y %H:%M') if intervalo in ["15m", "60m"] else df_datos.index.strftime('%d/%m/%y')
+            # EJE X OPTIMIZADO: Formato solo Día/Mes y Hora (Sin Año)
+            df_datos['Fecha_Texto'] = df_datos.index.strftime('%d/%m %H:%M') if intervalo in ["15m", "60m"] else df_datos.index.strftime('%d/%m')
 
             fig = go.Figure()
             fig.add_trace(go.Candlestick(
@@ -109,23 +100,37 @@ with tab1:
                 template="plotly_dark",
                 paper_bgcolor="#0b0e14",
                 plot_bgcolor="#0b0e14",
-                height=420,
+                height=430,
                 xaxis_rangeslider_visible=False,
-                margin=dict(l=10, r=35, t=10, b=30),
-                yaxis=dict(side="right", gridcolor="#1a202c", fixedrange=True),
+                margin=dict(l=5, r=35, t=10, b=30),
+                dragmode="pan", # Habilita desplazamiento táctil
+                yaxis=dict(
+                    side="right", 
+                    gridcolor="#1a202c", 
+                    fixedrange=False # Permite escalar verticalmente
+                ),
                 xaxis=dict(
                     gridcolor="#1a202c", 
                     type="category",
-                    nticks=5,            # Máximo 5 marcas en el eje horizontal
-                    tickangle=0,         # Texto completamente horizontal
-                    fixedrange=True
+                    nticks=5,
+                    tickangle=0,
+                    fixedrange=False # Permite hacer zoom horizontal
                 ),
                 hovermode="x"
             )
 
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            # Habilitamos controles de zoom en pantalla para móviles
+            st.plotly_chart(
+                fig, 
+                use_container_width=True, 
+                config={
+                    'scrollZoom': True, 
+                    'displayModeBar': True,
+                    'modeBarButtonsToRemove': ['select2d', 'lasso2d', 'resetScale2d']
+                }
+            )
 
-            # 1.5 ANÁLISIS DETALLADO DEL PROFESOR IA (LECTURA FLUIDA TIPO DIARIO)
+            # 1.5 ANÁLISIS VINCULADO STRICTAMENTE A LA VELA FINAL DEL DÍA SELECCIONADO
             if st.button("💡 Analizar con Profesor IA", type="primary", use_container_width=True, key="1.5_btn_analisis"):
                 ultima_fecha = df_datos.index[-1].strftime('%d/%m/%Y a las %H:%M hrs')
                 cierre = float(df_datos['Close'].iloc[-1])
@@ -166,7 +171,7 @@ with tab1:
                 * **Meta de Ganancia (Take Profit):** Lo fijamos cerca de la resistencia en **{maximo:.4f}**, asegurando los beneficios en cuanto el precio alcance la cima de la vela.
                 """)
         else:
-            st.error("No se encontraron datos disponibles para este rango/fecha.")
+            st.error("No se encontraron datos disponibles para la fecha seleccionada.")
 
 # ==============================================================================
 # PESTAÑAS 2 Y 3 (EN DESARROLLO)
@@ -176,4 +181,3 @@ with tab2:
 
 with tab3:
     st.info("🚧 Pestaña de Evaluación IA en construcción.")
-
