@@ -201,12 +201,12 @@ with tab1:
 # 2.0 PESTAÑA: BACKTESTING (PRÓXIMAMENTE)
 # ==============================================================================
 #with tab2:
-    st.info("2.0 — Pestaña en espera. Se activará tras validar la Pesta
+    #st.info("2.0 — Pestaña en espera. Se activará tras validar la Pesta
 # ==============================================================================
 # 3.0 PESTAÑA: EVALUACIÓN IA (PRÓXIMAMENTE)
 # ==============================================================================
-with tab3:
-    st.info("3.0 — Pestaña en espera.")
+#with tab3:
+    #st.info("3.0 — Pestaña en espera.")
 
 
 
