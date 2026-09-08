@@ -51,7 +51,8 @@ with tab1:
     tf_sel = st.selectbox("Temporalidades Nativas de Yahoo", list(TEMPORALIDADES_YAHOO.keys()), key="1.1_tf")
     
     fecha_defecto = date.today() - timedelta(days=7)
-    fecha_sel = st.date_input("Fecha a Consultar", value=fecha_defecto, max_value=date.today(), key="1.1_fecha", format="DD/MM/YY")
+    # Formato ajustado en minúsculas válido para Streamlit
+    fecha_sel = st.date_input("Fecha a Consultar", value=fecha_defecto, max_value=date.today(), key="1.1_fecha", format="DD/MM/YYYY")
 
     # 1.2 CONTROL DE FIN DE SEMANA
     if fecha_sel.weekday() >= 5:
@@ -85,7 +86,7 @@ with tab1:
         # 1.4 CONSTRUCCIÓN DEL LIENZO GRÁFICO (EJE X OPTIMIZADO PARA MÓVIL)
         if df_datos is not None and not df_datos.empty:
             
-            # Formato de fecha ultracorto para no saturar la pantalla táctil
+            # Formato de fecha para el gráfico en texto limpio
             df_datos['Fecha_Texto'] = df_datos.index.strftime('%d/%m/%y %H:%M') if intervalo in ["15m", "60m"] else df_datos.index.strftime('%d/%m/%y')
 
             fig = go.Figure()
@@ -126,7 +127,7 @@ with tab1:
 
             # 1.5 ANÁLISIS DETALLADO DEL PROFESOR IA (LECTURA FLUIDA TIPO DIARIO)
             if st.button("💡 Analizar con Profesor IA", type="primary", use_container_width=True, key="1.5_btn_analisis"):
-                ultima_fecha = df_datos.index[-1].strftime('%d/%m/%y a las %H:%M hrs')
+                ultima_fecha = df_datos.index[-1].strftime('%d/%m/%Y a las %H:%M hrs')
                 cierre = float(df_datos['Close'].iloc[-1])
                 apertura = float(df_datos['Open'].iloc[-1])
                 maximo = float(df_datos['High'].iloc[-1])
@@ -175,3 +176,4 @@ with tab2:
 
 with tab3:
     st.info("🚧 Pestaña de Evaluación IA en construcción.")
+
