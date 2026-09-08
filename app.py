@@ -188,11 +188,135 @@ with tab1:
         else:
             st.error("No se encontraron datos de mercado para la fecha seleccionada.")
 
-# ==============================================================================
-# PESTAÑAS 2 Y 3 (EN DESARROLLO)
+
+==============================================================================
+# PESTAÑA 2: BACKTESTING INTERACTIVO (SIMULADOR A CIEGAS)
 # ==============================================================================
 with tab2:
-    st.info("🚧 Pestaña de Backtesting en construcción.")
+    st.write("### 🧪 Simulador de Toma de Decisiones en Vivo")
+    st.caption("Ponte a prueba: analiza la gráfica oculta, decide tu estrategia y comprueba si habrías ganado o perdido capital.")
 
+    col1, col2 = st.columns(2)
+    with col1:
+        par_bt = st.selectbox("Par a Simular", list(SIMBOLOS_FOREX.keys()), key="2_par")
+    with col2:
+        fecha_bt_defecto = date.today() - timedelta(days=10)
+        fecha_bt = st.date_input("Fecha del Desafío", value=fecha_bt_defecto, max_value=date.today(), key="2_fecha", format="DD/MM/YYYY")
+
+    if fecha_bt.weekday() >= 5:
+        st.error("⚠️ Elige un día laborable (Lunes a Viernes).")
+    else:
+        ticker_bt = SIMBOLOS_FOREX[par_bt]
+        with st.spinner("Preparando escenario de simulación..."):
+            try:
+                df_bt = yf.download(tickers=ticker_bt, start=fecha_bt, end=fecha_bt + timedelta(days=1), interval="15m", progress=False)
+                if isinstance(df_bt.columns, pd.MultiIndex):
+                    df_bt.columns = df_bt.columns.get_level_values(0)
+                df_bt = df_bt.dropna()
+            except Exception:
+                df_bt = None
+
+        if df_bt is not None and len(df_bt) > 12:
+            df_bt['Eje_X_Tiempo'] = df_bt.index.strftime('%H:%M')
+            
+            # CORTAR EL MERCADO A LA MITAD DEL DÍA (Ocultar el futuro)
+            mitad = len(df_bt) // 2
+            df_visible = df_bt.iloc[:mitad]
+            df_futuro = df_bt.iloc[mitad:]
+
+            st.warning("🔒 **MERCADO EN VIVO:** El futuro del gráfico está oculto. Observa las primeras velas del día y toma tu decisión.")
+
+            # DIBUJAR GRÁFICO VISIBLE (CORTE)
+            fig_bt = go.Figure()
+            fig_bt.add_trace(go.Candlestick(
+                x=df_visible['Eje_X_Tiempo'], open=df_visible['Open'], high=df_visible['High'],
+                low=df_visible['Low'], close=df_visible['Close'], name="Velas Visibles",
+                increasing_line_color='#00e676', decreasing_line_color='#ff1744'
+            ))
+            fig_bt.update_layout(
+                template="plotly_dark", paper_bgcolor="#0b0e14", plot_bgcolor="#0b0e14",
+                height=380, showlegend=False, xaxis_rangeslider_visible=False,
+                margin=dict(l=10, r=40, t=10, b=20),
+                yaxis=dict(title="💵 Precio", side="right", gridcolor="#1a202c"),
+                xaxis=dict(title="⏰ Tiempo Revelo Parcial", gridcolor="#1a202c", type="category")
+            )
+            st.plotly_chart(fig_bt, use_container_width=True)
+
+            # FORMULARIO DE DECISIÓN DEL ALUMNO
+            st.markdown("---")
+            st.write("### 🎮 Panel de Control del Alumno")
+            
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                operacion = st.radio("1. ¿Qué decisión tomas?", ["🟢 COMPRAR", "🔴 VENDER"], key="bt_op")
+            with c2:
+                usar_sl = st.radio("2. ¿Colocas Stop Loss (Protección)?", ["✅ SÍ (Usar Límite de Riesgo)", "❌ NO (Sin Límite)"], key="bt_sl")
+            with c3:
+                riesgo_porcentaje = st.slider("3. % de Cuenta a Arriesgar", 1, 10, 2, key="bt_risk")
+
+            btn_simular = st.button("🚀 Revelar Futuro y Ejecutar Simulación", type="primary", use_container_width=True)
+
+            if btn_simular:
+                st.markdown("---")
+                st.write("### 📜 Resultado de la Simulación")
+
+                # Cálculo de la realidad del mercado futuro
+                precio_entrada = float(df_visible['Close'].iloc[-1])
+                max_futuro = float(df_futuro['High'].max())
+                min_futuro = float(df_futuro['Low'].min())
+                precio_final = float(df_futuro['Close'].iloc[-1])
+
+                # DIBUJAR MERCADO COMPLETO (REVELADO)
+                fig_revelado = go.Figure()
+                fig_revelado.add_trace(go.Candlestick(
+                    x=df_bt['Eje_X_Tiempo'], open=df_bt['Open'], high=df_bt['High'],
+                    low=df_bt['Low'], close=df_bt['Close'], name="Velas Completas",
+                    increasing_line_color='#00e676', decreasing_line_color='#ff1744'
+                ))
+                # Marcar punto donde decidió el alumno
+                fig_revelado.add_vline(x=df_visible['Eje_X_Tiempo'].iloc[-1], line_dash="dash", line_color="#e040fb", annotation_text="📍 Tu Decisión")
+                
+                fig_revelado.update_layout(
+                    template="plotly_dark", paper_bgcolor="#0b0e14", plot_bgcolor="#0b0e14",
+                    height=400, showlegend=False, xaxis_rangeslider_visible=False,
+                    margin=dict(l=10, r=40, t=10, b=20),
+                    yaxis=dict(title="💵 Precio", side="right", gridcolor="#1a202c"),
+                    xaxis=dict(title="⏰ Día Completo Revelado", gridcolor="#1a202c", type="category")
+                )
+                st.plotly_chart(fig_revelado, use_container_width=True)
+
+                # EVALUACIÓN DE LA DECISIÓN DEL ALUMNO
+                es_compra = "COMPRAR" in operacion
+                subio_mercado = precio_final > precio_entrada
+                cayo_mucho = min_futuro < (precio_entrada * 0.997)
+
+                # LECCIÓN DIDÁCTICA SEGÚN SU DECISIÓN
+                if "❌ NO" in usar_sl and cayo_mucho:
+                    st.error(f"""
+                    ### 🚨 ¡ALERTA PEDAGÓGICA: CUENTA EN RIESGO GRAVE!
+                    * **Lo que elegiste:** Decidiste **{operacion}** sin colocar Stop Loss.
+                    * **Lo que pasó:** El mercado cayó fuertemente durante la jornada a un mínimo de `{min_futuro:.4f}`.
+                    * **Lección de Trading:** Como no pusiste Stop Loss, mantuviste una pérdida flotante gigante que habría **liquidado el 80% de tu cuenta** antes de cualquier recuperación. ¡Nunca operes sin protección!
+                    """)
+                elif (es_compra and subio_mercado) or (not es_compra and not subio_mercado):
+                    st.success(f"""
+                    ### 🎉 ¡EXCELENTE LECTURA DE MERCADO!
+                    * **Decisión Correcta:** Acertaste la dirección ({operacion}).
+                    * **Entrada:** `{precio_entrada:.4f}` ➔ **Cierre Máximo:** `{max_futuro:.4f}`
+                    * **Gestión de Riesgo:** Usar Stop Loss te mantuvo protegido con un riesgo controlado del {riesgo_porcentaje}%.
+                    """)
+                else:
+                    st.warning(f"""
+                    ### 📉 OPERACIÓN CON PÉRDIDA CONTROLADA
+                    * **Resultado:** Elegiste **{operacion}**, pero el mercado se movió en dirección opuesta.
+                    * **Lo bueno de tu gestión:** Si activaste el Stop Loss, la pérdida se cerró automáticamente al {riesgo_porcentaje}%, manteniendo tu cuenta a salvo para la siguiente oportunidad.
+                    """)
+        else:
+            st.error("No hay suficientes datos para simular en esta fecha.")
+
+
+# ==============================================================================
+# PESTAÑA 3 (EN DESARROLLO)
+# ==============================================================================
 with tab3:
     st.info("🚧 Pestaña de Evaluación IA en construcción.")
