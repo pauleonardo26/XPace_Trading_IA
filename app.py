@@ -1,14 +1,11 @@
-# ==============================================================================
-# 0.0 CONFIGURACIÓN GENERAL E IMPORTACIÓN DE LIBRERÍAS
-# ==============================================================================
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 import yfinance as yf
 
 # ------------------------------------------------------------------------------
-# 0.1 CONFIGURACIÓN DE PÁGINA Y ESTILOS
+# CONFIGURACIÓN GENERAL
 # ------------------------------------------------------------------------------
 st.set_page_config(page_title="XPace — Escuela de Trading", layout="wide", page_icon="🎓")
 
@@ -16,19 +13,13 @@ st.markdown("""
     <style>
     .stApp { background-color: #0b0e14 !important; color: #e6edf3 !important; }
     .block-container { padding-top: 1rem !important; max-width: 100% !important; }
-    
-    /* Cajas de selección táctiles */
-    .stSelectbox > div > div {
-        background-color: #1a2230 !important;
-        color: #ffffff !important;
-        border-radius: 6px !important;
-    }
     </style>
 """, unsafe_allow_html=True)
 
-# ------------------------------------------------------------------------------
-# 0.2 DICCIONARIOS Y CONSTANTES DE YAHOO FINANCE
-# ------------------------------------------------------------------------------
+st.title("🎓 XPace — Escuela de Trading")
+st.caption("Datos reales directo de Yahoo Finance con explicaciones pedagógicas de IA")
+
+# DICCIONARIOS Y CONSTANTES
 SIMBOLOS_FOREX = {
     "EUR/USD (Euro / Dólar)": "EURUSD=X",
     "USD/JPY (Dólar / Yen)": "JPY=X",
@@ -45,43 +36,28 @@ TEMPORALIDADES_YAHOO = {
 }
 
 # ------------------------------------------------------------------------------
-# 0.3 ENCABEZADO PRINCIPAL DE LA APLICACIÓN
+# PESTAÑAS PRINCIPALES
 # ------------------------------------------------------------------------------
-st.title("🎓 XPace — Escuela de Trading")
-st.caption("Datos reales directo de Yahoo Finance con explicaciones pedagógicas de IA")
-
-# ------------------------------------------------------------------------------
-# 0.4 CREACIÓN DE PESTAÑAS
-# ------------------------------------------------------------------------------
-tab1, tab2, tab3 = st.tabs(["📈 Histórico Educativo", "🧪 Backtesting (Próximamente)", "🤖 Evaluación IA (Próximamente)"])
-
+tab1, tab2, tab3 = st.tabs(["📈 Histórico Educativo", "🧪 Backtesting", "🤖 Evaluación IA"])
 
 # ==============================================================================
-# 1.0 PESTAÑA: HISTÓRICO EDUCATIVO
+# PESTAÑA 1: HISTÓRICO EDUCATIVO
 # ==============================================================================
 with tab1:
-    
-    # --------------------------------------------------------------------------
-    # 1.1 PANEL DE FILTROS DE MERCADO
-    # --------------------------------------------------------------------------
     st.write("### 📌 Filtros de Mercado")
     
+    # 1.1 FILTROS DE MERCADO
     par_sel = st.selectbox("Par de Forex", list(SIMBOLOS_FOREX.keys()), key="1.1_par")
     tf_sel = st.selectbox("Temporalidades Nativas de Yahoo", list(TEMPORALIDADES_YAHOO.keys()), key="1.1_tf")
     
     fecha_defecto = date.today() - timedelta(days=7)
-    fecha_sel = st.date_input("Fecha a Consultar", value=fecha_defecto, max_value=date.today(), key="1.1_fecha")
+    fecha_sel = st.date_input("Fecha a Consultar", value=fecha_defecto, max_value=date.today(), key="1.1_fecha", format="DD/MM/YY")
 
-    # --------------------------------------------------------------------------
-    # 1.2 CONTROL DE DÍAS FESTIVOS / FIN DE SEMANA
-    # --------------------------------------------------------------------------
+    # 1.2 CONTROL DE FIN DE SEMANA
     if fecha_sel.weekday() >= 5:
         st.error("⚠️ Los sábados y domingos el mercado Forex no genera datos. Elige un día de lunes a viernes.")
     else:
-        
-        # ----------------------------------------------------------------------
-        # 1.3 DESCARGA DE DATOS DESDE YAHOO FINANCE
-        # ----------------------------------------------------------------------
+        # 1.3 DESCARGA DE DATOS REALES
         ticker = SIMBOLOS_FOREX[par_sel]
         intervalo = TEMPORALIDADES_YAHOO[tf_sel]
         
@@ -105,23 +81,27 @@ with tab1:
             except Exception as e:
                 df_datos = None
                 st.error(f"Error directo de conexión con Yahoo: {str(e)}")
-        
 
-        # ----------------------------------------------------------------------
-        # 1.4 CONSTRUCCIÓN DEL LIENZO GRÁFICO (ESTABLE CON EJE X DE DÍA Y HORA)
-        # ----------------------------------------------------------------------
+        # 1.4 CONSTRUCCIÓN DEL LIENZO GRÁFICO (EJE X OPTIMIZADO PARA MÓVIL)
         if df_datos is not None and not df_datos.empty:
             
-            # Filtrar exactamente el rango de datos para evitar amontonamiento
+            # Formato de fecha ultracorto para no saturar la pantalla táctil
+            df_datos['Fecha_Texto'] = df_datos.index.strftime('%d/%m/%y %H:%M') if intervalo in ["15m", "60m"] else df_datos.index.strftime('%d/%m/%y')
+
             fig = go.Figure()
             fig.add_trace(go.Candlestick(
-                x=df_datos.index,
+                x=df_datos['Fecha_Texto'],
                 open=df_datos['Open'],
                 high=df_datos['High'],
                 low=df_datos['Low'],
                 close=df_datos['Close'],
                 increasing_line_color='#00e676', increasing_fillcolor='#00e676',
-                decreasing_line_color='#ff1744', decreasing_fillcolor='#ff1744'
+                decreasing_line_color='#ff1744', decreasing_fillcolor='#ff1744',
+                hovertext=[
+                    f"<b>Fecha: {row['Fecha_Texto']}</b><br>Apertura: {row['Open']:.4f}<br>Máx: {row['High']:.4f}<br>Mín: {row['Low']:.4f}<br>Cierre: {row['Close']:.4f}"
+                    for _, row in df_datos.iterrows()
+                ],
+                hoverinfo="text"
             ))
 
             fig.update_layout(
@@ -130,32 +110,23 @@ with tab1:
                 plot_bgcolor="#0b0e14",
                 height=420,
                 xaxis_rangeslider_visible=False,
-                margin=dict(l=10, r=40, t=10, b=10),
-                # Eje Y estable para evitar saltos de cámara
+                margin=dict(l=10, r=35, t=10, b=30),
                 yaxis=dict(side="right", gridcolor="#1a202c", fixedrange=True),
-                # Eje X configurado con formato claro de Hora y Día
                 xaxis=dict(
                     gridcolor="#1a202c", 
-                    tickformat="%d/%m %H:%M",
-                    type="category" # Mantiene el espacio uniforme entre velas sin huecos
+                    type="category",
+                    nticks=5,            # Máximo 5 marcas en el eje horizontal
+                    tickangle=0,         # Texto completamente horizontal
+                    fixedrange=True
                 ),
-                hovermode="x unified"
+                hovermode="x"
             )
 
-            # Desactivar gestos bruscos para controlar la pantalla táctil
-            st.plotly_chart(
-                fig, 
-                use_container_width=True, 
-                config={'displayModeBar': False}
-            )
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-            # ------------------------------------------------------------------
-            # 1.5 ANÁLISIS DETALLADO DEL PROFESOR IA (LECTURA FLUIDA)
-            # ------------------------------------------------------------------
+            # 1.5 ANÁLISIS DETALLADO DEL PROFESOR IA (LECTURA FLUIDA TIPO DIARIO)
             if st.button("💡 Analizar con Profesor IA", type="primary", use_container_width=True, key="1.5_btn_analisis"):
-                
-                # Datos de la vela para el análisis
-                ultima_fecha = df_datos.index[-1].strftime('%d/%m/%Y a las %H:%M hrs')
+                ultima_fecha = df_datos.index[-1].strftime('%d/%m/%y a las %H:%M hrs')
                 cierre = float(df_datos['Close'].iloc[-1])
                 apertura = float(df_datos['Open'].iloc[-1])
                 maximo = float(df_datos['High'].iloc[-1])
@@ -164,7 +135,6 @@ with tab1:
                 es_alcista = cierre >= apertura
                 cuerpo = abs(cierre - apertura)
                 sombra_inf = min(cierre, apertura) - minimo
-                sombra_sup = maximo - max(cierre, apertura)
 
                 st.markdown("---")
                 st.markdown(f"## 📖 Lección Didáctica: Análisis del {par_sel}")
@@ -194,23 +164,14 @@ with tab1:
                 * **Límite de Seguridad (Stop Loss):** Se debe colocar justo en **{minimo:.4f}**. Si el precio rompe este piso hacia abajo, el sistema cierra automáticamente tu posición para evitar pérdidas mayores.
                 * **Meta de Ganancia (Take Profit):** Lo fijamos cerca de la resistencia en **{maximo:.4f}**, asegurando los beneficios en cuanto el precio alcance la cima de la vela.
                 """)
-
-        
+        else:
+            st.error("No se encontraron datos disponibles para este rango/fecha.")
 
 # ==============================================================================
-# 2.0 PESTAÑA: BACKTESTING (PRÓXIMAMENTE)
+# PESTAÑAS 2 Y 3 (EN DESARROLLO)
 # ==============================================================================
-#with tab2:
-    #st.info("2.0 — Pestaña en espera. Se activará tras validar la Pesta
-# ==============================================================================
-# 3.0 PESTAÑA: EVALUACIÓN IA (PRÓXIMAMENTE)
-# ==============================================================================
-#with tab3:
-    #st.info("3.0 — Pestaña en espera.")
+with tab2:
+    st.info("🚧 Pestaña de Backtesting en construcción.")
 
-
-
-
-
-
-
+with tab3:
+    st.info("🚧 Pestaña de Evaluación IA en construcción.")
