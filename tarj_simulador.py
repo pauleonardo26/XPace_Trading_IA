@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 import yfinance as yf
 from datetime import date, timedelta
@@ -11,9 +12,70 @@ SIMBOLOS_FOREX = {
     "EUR/JPY (Euro / Yen)": "EURJPY=X"
 }
 
+def procesar_velas_pedagogicas(df):
+    """
+    Clasifica las velas según patrones técnicos clave y les asigna una categoría cromática.
+    """
+    df = df.copy()
+    
+    cuerpo = (df['Close'] - df['Open']).abs()
+    rango_total = df['High'] - df['Low']
+    rango_total = rango_total.replace(0, 0.00001)
+
+    mecha_superior = df['High'] - df[['Open', 'Close']].max(axis=1)
+    mecha_inferior = df[['Open', 'Close']].min(axis=1) - df['Low']
+
+    # Reglas lógicas de patrones
+    es_doji = cuerpo <= (rango_total * 0.10)
+    es_martillo = (mecha_inferior >= (cuerpo * 2)) & (mecha_superior <= (cuerpo * 0.5)) & (~es_doji)
+    es_estrella_fugaz = (mecha_superior >= (cuerpo * 2)) & (mecha_inferior <= (cuerpo * 0.5)) & (~es_doji)
+    es_marubozu = (cuerpo >= (rango_total * 0.85)) & (~es_doji)
+
+    # Asignación de categorías
+    df['Categoria'] = np.select(
+        [es_doji, es_martillo, es_estrella_fugaz, es_marubozu],
+        ['DOJI', 'MARTILLO', 'ESTRELLA_FUGAZ', 'MARUBOZU'],
+        default=np.where(df['Close'] >= df['Open'], 'NORMAL_ALCISTA', 'NORMAL_BAJISTA')
+    )
+    
+    return df
+
+def construir_grafico_multicolor(df_procesado):
+    """
+    Crea las trazas de velas clasificadas por color para Plotly.
+    """
+    fig = go.Figure()
+    
+    CONFIG_COLORES = {
+        'DOJI':            {'color': '#9C27B0', 'nombre': 'Doji (Indecisión)'},
+        'MARTILLO':        {'color': '#00E676', 'nombre': 'Martillo (Rebote Alcista)'},
+        'ESTRELLA_FUGAZ':  {'color': '#FF5252', 'nombre': 'Estrella Fugaz (Giro Bajista)'},
+        'MARUBOZU':        {'color': '#29B6F6', 'nombre': 'Marubozu (Impulso Fuerte)'},
+        'NORMAL_ALCISTA':  {'color': '#2E7D32', 'nombre': 'Alcista Normal'},
+        'NORMAL_BAJISTA':  {'color': '#C62828', 'nombre': 'Bajista Normal'}
+    }
+
+    for cat, cfg in CONFIG_COLORES.items():
+        sub_df = df_procesado[df_procesado['Categoria'] == cat]
+        if not sub_df.empty:
+            fig.add_trace(go.Candlestick(
+                x=sub_df['Eje_X_Tiempo'],
+                open=sub_df['Open'],
+                high=sub_df['High'],
+                low=sub_df['Low'],
+                close=sub_df['Close'],
+                name=cfg['nombre'],
+                increasing_line_color=cfg['color'],
+                decreasing_line_color=cfg['color'],
+                increasing_fillcolor=cfg['color'],
+                decreasing_fillcolor=cfg['color']
+            ))
+            
+    return fig
+
 def render():
     st.write("### 🧪 Simulador de Toma de Decisiones a Ciegas")
-    st.caption("Aplica tus herramientas de análisis técnico para respaldar tu entrada.")
+    st.caption("Aplica tus herramientas de análisis técnico y patrones de velas para respaldar tu entrada.")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -66,12 +128,9 @@ def render():
             with c3:
                 ver_niveles = st.checkbox("Soporte y Resistencia", value=False, key="chk_sr")
 
-            fig_bt = go.Figure()
-            fig_bt.add_trace(go.Candlestick(
-                x=df_visible['Eje_X_Tiempo'], open=df_visible['Open'], high=df_visible['High'],
-                low=df_visible['Low'], close=df_visible['Close'], name="Velas Visibles",
-                increasing_line_color='#00e676', decreasing_line_color='#ff1744'
-            ))
+            # Procesar datos visibles con patrón cromático
+            df_visible_proc = procesar_velas_pedagogicas(df_visible)
+            fig_bt = construir_grafico_multicolor(df_visible_proc)
 
             if ver_bollinger:
                 fig_bt.add_trace(go.Scatter(x=df_visible['Eje_X_Tiempo'], y=df_visible['BB_Upper'], line=dict(color='#ff9800', width=1, dash='dot'), name='Techo BB'))
@@ -82,7 +141,14 @@ def render():
                 fig_bt.add_hline(y=float(df_visible['High'].max()), line_dash="dash", line_color="#ff1744", annotation_text="Techo")
                 fig_bt.add_hline(y=float(df_visible['Low'].min()), line_dash="dash", line_color="#00e676", annotation_text="Piso")
 
-            fig_bt.update_layout(template="plotly_dark", height=380, paper_bgcolor="#0b0e14", plot_bgcolor="#0b0e14", xaxis_rangeslider_visible=False)
+            fig_bt.update_layout(
+                template="plotly_dark", 
+                height=420, 
+                paper_bgcolor="#0b0e14", 
+                plot_bgcolor="#0b0e14", 
+                xaxis_rangeslider_visible=False,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
             st.plotly_chart(fig_bt, use_container_width=True)
 
             if ver_rsi:
@@ -110,14 +176,19 @@ def render():
                 precio_final = float(df_futuro['Close'].iloc[-1])
                 hora_corte = df_visible['Eje_X_Tiempo'].iloc[-1]
 
-                fig_rev = go.Figure()
-                fig_rev.add_trace(go.Candlestick(
-                    x=df_bt['Eje_X_Tiempo'], open=df_bt['Open'], high=df_bt['High'],
-                    low=df_bt['Low'], close=df_bt['Close'],
-                    increasing_line_color='#00e676', decreasing_line_color='#ff1744'
-                ))
+                # Procesar mercado completo con patrón cromático para la revelación
+                df_bt_proc = procesar_velas_pedagogicas(df_bt)
+                fig_rev = construir_grafico_multicolor(df_bt_proc)
+                
                 fig_rev.add_shape(type="line", x0=hora_corte, x1=hora_corte, y0=0, y1=1, yref="paper", line=dict(color="#e040fb", width=2, dash="dash"))
-                fig_rev.update_layout(template="plotly_dark", height=400, paper_bgcolor="#0b0e14", plot_bgcolor="#0b0e14", xaxis_rangeslider_visible=False)
+                fig_rev.update_layout(
+                    template="plotly_dark", 
+                    height=420, 
+                    paper_bgcolor="#0b0e14", 
+                    plot_bgcolor="#0b0e14", 
+                    xaxis_rangeslider_visible=False,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
                 st.plotly_chart(fig_rev, use_container_width=True)
 
                 es_compra = "COMPRAR" in operacion
@@ -132,4 +203,3 @@ def render():
                         st.warning(f"📉 Pérdida controlada. Solo perdiste el `{riesgo}%` asignado.")
         else:
             st.error("No hay suficientes datos para simular en esta fecha.")
-
